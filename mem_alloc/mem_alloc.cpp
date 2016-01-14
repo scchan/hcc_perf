@@ -30,17 +30,6 @@ uint64_t find_max_buffer_size() {
     else {
       return size;
     }
-#if 0
-    try {
-      hc::array<int, 1>* array = new hc::array<int, 1>(size/sizeof(int));
-      std::cout << size << " bytes buffer allocation sucessful" << std::endl;
-      size<<=1;
-      delete array;
-    } catch(...) {
-      break;
-    }
-#endif
-
   }
   return size;
 }
