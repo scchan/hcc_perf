@@ -14,7 +14,7 @@ void run_shfl_const_width
   T src = input[id];
   int lane = srcLane[id];
 
-  T out = hc::__shfl(src, lane, WIDTH);
+  T out = __shfl(src, lane, WIDTH);
 
   output[id] = out;
 }
