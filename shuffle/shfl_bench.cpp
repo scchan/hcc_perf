@@ -3,6 +3,7 @@
 #include <future>
 #include <iostream>
 #include <algorithm>
+#include <typeinfo>
 #include "hip_runtime.h"
 
 
@@ -20,9 +21,28 @@ void run_shfl_const_width
   output[id] = out;
 }
 
+#define CUDA_SAFE_CALL(X) (X)
+
+void initializeEvents(hipEvent_t *start, hipEvent_t *stop){
+  CUDA_SAFE_CALL( hipEventCreate(start) );
+	CUDA_SAFE_CALL( hipEventCreate(stop) );
+	CUDA_SAFE_CALL( hipEventRecord(*start, 0) );
+}
+
+float finalizeEvents(hipEvent_t start, hipEvent_t stop){
+	CUDA_SAFE_CALL( hipGetLastError() );
+	CUDA_SAFE_CALL( hipEventRecord(stop, 0) );
+	CUDA_SAFE_CALL( hipEventSynchronize(stop) );
+	float kernel_time;
+	CUDA_SAFE_CALL( hipEventElapsedTime(&kernel_time, start, stop) );
+	CUDA_SAFE_CALL( hipEventDestroy(start) );
+	CUDA_SAFE_CALL( hipEventDestroy(stop) );
+	return kernel_time;
+}
+
 
 template<typename T, int WIDTH>
-int test_shfl_const_width(const int n, const int blockSize) {
+int test_shfl_const_width(const int n, const int blockSize, const int iter=1, const bool verify=true) {
 
 
   std::vector<int> srcLane(n);
@@ -53,29 +73,57 @@ int test_shfl_const_width(const int n, const int blockSize) {
   T* gpuOutput;
   hipMalloc(&gpuOutput, n * sizeof(T));
 
-  hipLaunchKernel(HIP_KERNEL_NAME(run_shfl_const_width<T, WIDTH>)
-                  , dim3(n/blockSize), dim3(blockSize), 0, 0
-                  , gpuInput, gpuSrcLane, gpuOutput); 
 
+  {
+	  hipEvent_t start, stop;
+
+    initializeEvents(&start, &stop);
+
+    hipLaunchKernel(HIP_KERNEL_NAME(run_shfl_const_width<T, WIDTH>)
+                    , dim3(n/blockSize), dim3(blockSize), 0, 0
+                    , gpuInput, gpuSrcLane, gpuOutput); 
+
+    float time_ms = finalizeEvents(start, stop);
+    std::cout << __FUNCTION__ << "<" << typeid(T).name() << ", " << WIDTH << "> warm up: " << time_ms << "ms" << std::endl;
+  }
+
+
+
+  {
+	  hipEvent_t start, stop;
+
+    initializeEvents(&start, &stop);
+
+    for (int i = 0; i < iter; i++) {
+      hipLaunchKernel(HIP_KERNEL_NAME(run_shfl_const_width<T, WIDTH>)
+                      , dim3(n/blockSize), dim3(blockSize), 0, 0
+                      , gpuInput, gpuSrcLane, gpuOutput); 
+    }
+    float time_ms = finalizeEvents(start, stop);
+    std::cout << __FUNCTION__ << "<" << typeid(T).name() << ", " << WIDTH 
+              << "> total(" << iter << " iterations): " 
+              << time_ms << "ms, "
+              << time_ms/(double)iter << "ms/iteration"
+              << std::endl;
+  }
 
   std::vector<T> output(n);
   hipMemcpy(output.data(), gpuOutput, n * sizeof(T), hipMemcpyDeviceToHost);
-
-
+  
   int errors = 0;
-  int blockOrigin = 0;
-  int logicalCounter = 0;
-  for (int i = 0; i < n; i++) {
-
-    T expected = input[blockOrigin + srcLane[i]];
-    if (expected != output[i]) {
-      errors++;
-    }
-    
-    logicalCounter++;
-    if (logicalCounter>=WIDTH) {
-      logicalCounter = 0;
-      blockOrigin+=WIDTH;
+  if (verify) {
+    int blockOrigin = 0;
+    int logicalCounter = 0;
+    for (int i = 0; i < n; i++) {
+      T expected = input[blockOrigin + srcLane[i]];
+      if (expected != output[i]) {
+        errors++;
+      }
+      logicalCounter++;
+      if (logicalCounter>=WIDTH) {
+        logicalCounter = 0;
+        blockOrigin+=WIDTH;
+      }
     }
   }
 
@@ -88,55 +136,57 @@ int test_shfl_const_width(const int n, const int blockSize) {
 
 
 template<typename T>
-void run_test_shfl_const_width(const int num, const int blockSize) {
+void run_test_shfl_const_width(const int num, const int blockSize, const int iter) {
 
-  {int errors =  test_shfl_const_width<T, 2>(num, blockSize);
+  {int errors =  test_shfl_const_width<T, 2>(num, blockSize, iter);
    std::cout << "test_shfl_const_width: width=2, num=" << num << ", blockSize=" << blockSize << ": " << errors << " errors" << std::endl;}
 
-  {int errors =  test_shfl_const_width<T, 4>(num, blockSize);
+  {int errors =  test_shfl_const_width<T, 4>(num, blockSize, iter);
    std::cout << "test_shfl_const_width: width=4, num=" << num << ", blockSize=" << blockSize << ": " << errors << " errors" << std::endl;}
 
-  {int errors =  test_shfl_const_width<T, 8>(num, blockSize);
+  {int errors =  test_shfl_const_width<T, 8>(num, blockSize, iter);
    std::cout << "test_shfl_const_width: width=8, num=" << num << ", blockSize=" << blockSize << ": " << errors << " errors" << std::endl;}
 
-  {int errors =  test_shfl_const_width<T, 16>(num, blockSize);
+  {int errors =  test_shfl_const_width<T, 16>(num, blockSize, iter);
    std::cout << "test_shfl_const_width: width=16, num=" << num << ", blockSize=" << blockSize << ": " << errors << " errors" << std::endl;}
 
-  {int errors =  test_shfl_const_width<T, 32>(num, blockSize);
+  {int errors =  test_shfl_const_width<T, 32>(num, blockSize, iter);
    std::cout << "test_shfl_const_width: width=32, num=" << num << ", blockSize=" << blockSize << ": " << errors << " errors" << std::endl;}
 
-  {int errors =  test_shfl_const_width<T, 64>(num, blockSize);
+  {int errors =  test_shfl_const_width<T, 64>(num, blockSize, iter);
    std::cout << "test_shfl_const_width: width=64, num=" << num << ", blockSize=" << blockSize << ": " << errors << " errors" << std::endl;}
 }
 
 int main() {
 
-  run_test_shfl_const_width<int>(64,64);
+#define ITER 10
 
-  run_test_shfl_const_width<int>(128,64);
-  run_test_shfl_const_width<int>(128,128);
+  run_test_shfl_const_width<int>(64,64,ITER);
 
-  run_test_shfl_const_width<int>(1024*1024,64);
-  run_test_shfl_const_width<int>(1024*1024,128);
-  run_test_shfl_const_width<int>(1024*1024,256);
+  run_test_shfl_const_width<int>(128,64,ITER);
+  run_test_shfl_const_width<int>(128,128,ITER);
 
-  run_test_shfl_const_width<int>(1024*1024*50,64);
-  run_test_shfl_const_width<int>(1024*1024*50,128);
-  run_test_shfl_const_width<int>(1024*1024*50,256);
+  run_test_shfl_const_width<int>(1024*1024,64,ITER);
+  run_test_shfl_const_width<int>(1024*1024,128,ITER);
+  run_test_shfl_const_width<int>(1024*1024,256,ITER);
+
+  run_test_shfl_const_width<int>(1024*1024*50,64,ITER);
+  run_test_shfl_const_width<int>(1024*1024*50,128,ITER);
+  run_test_shfl_const_width<int>(1024*1024*50,256,ITER);
 
 
-  run_test_shfl_const_width<float>(64,64);
+  run_test_shfl_const_width<float>(64,64,ITER);
 
-  run_test_shfl_const_width<float>(128,64);
-  run_test_shfl_const_width<float>(128,128);
+  run_test_shfl_const_width<float>(128,64,ITER);
+  run_test_shfl_const_width<float>(128,128,ITER);
 
-  run_test_shfl_const_width<float>(1024*1024,64);
-  run_test_shfl_const_width<float>(1024*1024,128);
-  run_test_shfl_const_width<float>(1024*1024,256);
+  run_test_shfl_const_width<float>(1024*1024,64,ITER);
+  run_test_shfl_const_width<float>(1024*1024,128,ITER);
+  run_test_shfl_const_width<float>(1024*1024,256,ITER);
 
-  run_test_shfl_const_width<float>(1024*1024*50,64);
-  run_test_shfl_const_width<float>(1024*1024*50,128);
-  run_test_shfl_const_width<float>(1024*1024*50,256);
+  run_test_shfl_const_width<float>(1024*1024*50,64,ITER);
+  run_test_shfl_const_width<float>(1024*1024*50,128,ITER);
+  run_test_shfl_const_width<float>(1024*1024*50,256,ITER);
 
   return 0;
 }
