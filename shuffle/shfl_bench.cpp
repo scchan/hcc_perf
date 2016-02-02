@@ -7,8 +7,8 @@
 
 template<typename T, int WIDTH>
 __global__ 
-void HIP_FUNCTION(run_shfl_const_width
-                  , T* input, int* srcLane, T* output) {
+void run_shfl_const_width
+                 (hipLaunchParm lp , T* input, int* srcLane, T* output) {
 
   int id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
   T src = input[id];
@@ -18,7 +18,6 @@ void HIP_FUNCTION(run_shfl_const_width
 
   output[id] = out;
 }
-HIP_FUNCTION_END
 
 
 template<typename T, int WIDTH>
