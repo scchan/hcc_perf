@@ -111,10 +111,6 @@ void run_test_shfl_const_width(const int num, const int blockSize) {
 
 int main() {
 
-  int errors;
-  int num;
-  int blockSize;
-
   run_test_shfl_const_width<int>(64,64);
 
   run_test_shfl_const_width<int>(128,64);
