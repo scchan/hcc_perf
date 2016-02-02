@@ -2,6 +2,7 @@
 #include <random>
 #include <future>
 #include <iostream>
+#include <algorithm>
 #include "hip_runtime.h"
 
 
