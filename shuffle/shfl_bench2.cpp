@@ -97,6 +97,26 @@ int test_shfl_const_width(const int n, const int blockSize, const int launch_ite
   
   int errors = 0;
   if (verify) {
+    for (int j = 0; j < shfl_iter; j++) {
+      for (int i = 0; i < n; i+=WIDTH) {
+        int local_output[WIDTH];
+        for (int k = 0; k < WIDTH; k++) {
+          local_output[k] = input[i + input[i+k]];
+        }
+        for (int k = 0; k < WIDTH; k++) {
+          input[i+k] = local_output[k];
+        }
+      }
+    }
+
+    for (int i = 0; i < n; i++) {
+      if (input[i] != output[i]) {
+        errors++;
+      }
+    }
+
+
+#if 0  
     int blockOrigin = 0;
     int logicalCounter = 0;
     for (int i = 0; i < n; i++) {
@@ -110,6 +130,9 @@ int test_shfl_const_width(const int n, const int blockSize, const int launch_ite
         blockOrigin+=WIDTH;
       }
     }
+#endif
+
+
   }
 
   hipFree(gpuInput);
