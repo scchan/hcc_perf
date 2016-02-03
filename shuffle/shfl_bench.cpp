@@ -16,9 +16,14 @@ void run_shfl_const_width
   T src = input[id];
   int lane = srcLane[id];
 
-  T out = __shfl(src, lane, WIDTH);
 
+#ifdef SHFL
+  T out = __shfl(src, lane, WIDTH);
   output[id] = out;
+#else
+  output[id] = id + lane;
+#endif
+
 }
 
 #define CUDA_SAFE_CALL(X) (X)
