@@ -17,11 +17,11 @@ void run_shfl_const_width
   int lane = srcLane[id];
 
 
-#ifdef SHFL
+#ifndef ADD_KERNEL
   T out = __shfl(src, lane, WIDTH);
   output[id] = out;
 #else
-  output[id] = id + lane;
+  output[id] = src + lane;
 #endif
 
 }

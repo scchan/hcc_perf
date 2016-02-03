@@ -1,0 +1,7 @@
+#!/bin/bash
+
+
+
+$HIP_PATH/bin/hipcc shfl_bench.cpp -o shfl_bench -std=c++11 -gencode=arch=compute_52,code=sm_52
+$HIP_PATH/bin/hipcc -DADD_KERNEL shfl_bench.cpp -o shfl_bench.add -std=c++11 -gencode=arch=compute_52,code=sm_52
+
