@@ -70,11 +70,10 @@ int test_shfl_const_width(const int n, const int blockSize, const int launch_ite
                     , gpuInput, gpuOutput, shfl_iter); 
 
     float time_ms = finalizeEvents(start, stop);
-    //std::cout << __FUNCTION__ << "<"  << WIDTH << "> warm up: " << time_ms << "ms" << std::endl;
   }
 
 
-
+  // measure the performance
   hipEvent_t start, stop;
   initializeEvents(&start, &stop);
 
@@ -87,6 +86,8 @@ int test_shfl_const_width(const int n, const int blockSize, const int launch_ite
   std::vector<int> output(n);
   hipMemcpy(output.data(), gpuOutput, n * sizeof(int), hipMemcpyDeviceToHost);
   
+
+  // verification
   int errors = 0;
   if (verify) {
     for (int j = 0; j < shfl_iter; j++) {
@@ -100,7 +101,6 @@ int test_shfl_const_width(const int n, const int blockSize, const int launch_ite
         }
       }
     }
-
     for (int i = 0; i < n; i++) {
       if (input[i] != output[i]) {
         errors++;
@@ -131,42 +131,11 @@ void run_test_shfl_const_width(const int num, const int blockSize, const int lau
 }
 
 int main() {
-
 #define LAUNCH_ITER 10
-
 
   for (int i = 1; i <= 1000000; i *= 10) {
     run_test_shfl_const_width(64,64,LAUNCH_ITER, i);
   }
-
-
-#if 0
-  run_test_shfl_const_width<int>(128,64,ITER);
-  run_test_shfl_const_width<int>(128,128,ITER);
-
-  run_test_shfl_const_width<int>(1024*1024,64,ITER);
-  run_test_shfl_const_width<int>(1024*1024,128,ITER);
-  run_test_shfl_const_width<int>(1024*1024,256,ITER);
-
-  run_test_shfl_const_width<int>(1024*1024*50,64,ITER);
-  run_test_shfl_const_width<int>(1024*1024*50,128,ITER);
-  run_test_shfl_const_width<int>(1024*1024*50,256,ITER);
-
-
-  run_test_shfl_const_width<float>(64,64,ITER);
-
-  run_test_shfl_const_width<float>(128,64,ITER);
-  run_test_shfl_const_width<float>(128,128,ITER);
-
-  run_test_shfl_const_width<float>(1024*1024,64,ITER);
-  run_test_shfl_const_width<float>(1024*1024,128,ITER);
-  run_test_shfl_const_width<float>(1024*1024,256,ITER);
-
-  run_test_shfl_const_width<float>(1024*1024*50,64,ITER);
-  run_test_shfl_const_width<float>(1024*1024*50,128,ITER);
-  run_test_shfl_const_width<float>(1024*1024*50,256,ITER);
-#endif
-
   return 0;
 }
 
