@@ -90,20 +90,20 @@ int test_shfl_const_width(const int n, const int blockSize, const int launch_ite
   // verification
   int errors = 0;
   if (verify) {
-    for (int j = 0; j < shfl_iter; j++) {
-      for (int i = 0; i < n; i+=WIDTH) {
-        int local_output[WIDTH];
+    for (int i = 0; i < n; i+=WIDTH) {
+      int local_output[WIDTH];
+      for (int j = 0; j < shfl_iter; j++) {
         for (int k = 0; k < WIDTH; k++) {
-          local_output[k] = input[i + input[i+k]];
+          local_output[k] = input[i+input[i+k]];
         }
         for (int k = 0; k < WIDTH; k++) {
           input[i+k] = local_output[k];
         }
       }
-    }
-    for (int i = 0; i < n; i++) {
-      if (input[i] != output[i]) {
-        errors++;
+      for (int k = 0; k < WIDTH; k++) {
+        if (input[i+k] != output[i+k]) {
+          errors++;
+        }
       }
     }
   }
