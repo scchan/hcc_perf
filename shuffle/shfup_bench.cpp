@@ -94,7 +94,7 @@ int test_shfl_up_const_delta_width(const int n, const int blockSize, const int l
       int local_output[WIDTH];
       for (int j = 0; j < shfl_iter; j++) {
         for (int k = 0; k < WIDTH; k++) {
-          int lane = ((k-DELTA)<0)?k:(k-DELTA);
+          unsigned int lane = ((k-(int)DELTA)<0)?k:(k-DELTA);
           local_output[k] = input[i+lane];
         }
         for (int k = 0; k < WIDTH; k++) {
