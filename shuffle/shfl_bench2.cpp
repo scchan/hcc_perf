@@ -145,7 +145,7 @@ void run_activelaneperm_random
   int id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
   int data = input[id];
   for(int i = 0; i < iter; i++) {
-    data = hc::__activelanepermute_b32(data, data, 0, 0);
+    data = hc::__hsail_activelanepermute_b32(data, data, 0, 0);
   }
   output[id] = data;
 }
