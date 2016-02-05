@@ -29,18 +29,18 @@ float finalizeEvents(hipEvent_t start, hipEvent_t stop){
 
 template<unsigned int DELTA, int WIDTH>
 __global__ 
-void run_shfl_up_const_delta_width
+void run_shfl_down_const_delta_width
                  (hipLaunchParm lp , int* input, int* output, int iter) {
   int id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
   int data = input[id];
   for(int i = 0; i < iter; i++) {
-    data = __shfl_up(data, DELTA, WIDTH);
+    data = __shfl_down(data, DELTA, WIDTH);
   }
   output[id] = data;
 }
 
 template<unsigned int DELTA, int WIDTH>
-int test_shfl_up_const_delta_width(const int n, const int blockSize, const int launch_iter=1, const int shfl_iter=1, const bool verify=true) {
+int test_shfl_down_const_delta_width(const int n, const int blockSize, const int launch_iter=1, const int shfl_iter=1, const bool verify=true) {
 
 
   std::vector<int> input(n);
@@ -65,7 +65,7 @@ int test_shfl_up_const_delta_width(const int n, const int blockSize, const int l
 
     initializeEvents(&start, &stop);
 
-    hipLaunchKernel(HIP_KERNEL_NAME(run_shfl_up_const_delta_width<DELTA,WIDTH>)
+    hipLaunchKernel(HIP_KERNEL_NAME(run_shfl_down_const_delta_width<DELTA,WIDTH>)
                     , dim3(n/blockSize), dim3(blockSize), 0, 0
                     , gpuInput, gpuOutput, shfl_iter); 
 
@@ -78,7 +78,7 @@ int test_shfl_up_const_delta_width(const int n, const int blockSize, const int l
   initializeEvents(&start, &stop);
 
   for (int i = 0; i < launch_iter; i++) {
-    hipLaunchKernel(HIP_KERNEL_NAME(run_shfl_up_const_delta_width<DELTA,WIDTH>)
+    hipLaunchKernel(HIP_KERNEL_NAME(run_shfl_down_const_delta_width<DELTA,WIDTH>)
                     , dim3(n/blockSize), dim3(blockSize), 0, 0
                     , gpuInput, gpuOutput, shfl_iter); 
   }
@@ -94,7 +94,7 @@ int test_shfl_up_const_delta_width(const int n, const int blockSize, const int l
       int local_output[WIDTH];
       for (int j = 0; j < shfl_iter; j++) {
         for (int k = 0; k < WIDTH; k++) {
-          unsigned int lane = ((k-(int)DELTA)<0)?k:(k-DELTA);
+          unsigned int lane = (k + DELTA)>=WIDTH?k:k+DELTA;
           local_output[k] = input[i+lane];
         }
         for (int k = 0; k < WIDTH; k++) {
@@ -110,7 +110,7 @@ int test_shfl_up_const_delta_width(const int n, const int blockSize, const int l
   }
 
   std::cout << __FUNCTION__ << "<" << DELTA << "," << WIDTH 
-            << "> total(" << launch_iter << " launches, " << shfl_iter << " shfl_up/lane/kernel): " 
+            << "> total(" << launch_iter << " launches, " << shfl_iter << " shfl_down/lane/kernel): " 
             << time_ms << "ms, "
             << time_ms/(double)launch_iter << " ms/kernel, "
             << errors << " errors"
@@ -124,14 +124,14 @@ int test_shfl_up_const_delta_width(const int n, const int blockSize, const int l
 
 
 template<int WIDTH>
-void run_test_shfl_up_const_delta_width(const int num, const int blockSize, const int launch_iter, const int shfl_iter) {
-  test_shfl_up_const_delta_width<1, WIDTH>(num, blockSize, launch_iter, shfl_iter);
-  test_shfl_up_const_delta_width<2, WIDTH>(num, blockSize, launch_iter, shfl_iter);
-  test_shfl_up_const_delta_width<4, WIDTH>(num, blockSize, launch_iter, shfl_iter);
-  test_shfl_up_const_delta_width<8, WIDTH>(num, blockSize, launch_iter, shfl_iter);
-  test_shfl_up_const_delta_width<16,WIDTH>(num, blockSize, launch_iter, shfl_iter);
-  test_shfl_up_const_delta_width<32,WIDTH>(num, blockSize, launch_iter, shfl_iter);
-  test_shfl_up_const_delta_width<64,WIDTH>(num, blockSize, launch_iter, shfl_iter);
+void run_test_shfl_down_const_delta_width(const int num, const int blockSize, const int launch_iter, const int shfl_iter) {
+  test_shfl_down_const_delta_width<1, WIDTH>(num, blockSize, launch_iter, shfl_iter);
+  test_shfl_down_const_delta_width<2, WIDTH>(num, blockSize, launch_iter, shfl_iter);
+  test_shfl_down_const_delta_width<4, WIDTH>(num, blockSize, launch_iter, shfl_iter);
+  test_shfl_down_const_delta_width<8, WIDTH>(num, blockSize, launch_iter, shfl_iter);
+  test_shfl_down_const_delta_width<16,WIDTH>(num, blockSize, launch_iter, shfl_iter);
+  test_shfl_down_const_delta_width<32,WIDTH>(num, blockSize, launch_iter, shfl_iter);
+  test_shfl_down_const_delta_width<64,WIDTH>(num, blockSize, launch_iter, shfl_iter);
 }
 
 
@@ -140,15 +140,15 @@ int main() {
 
 
   for (int i = 1; i <= 1000000; i *= 10) {
-    run_test_shfl_up_const_delta_width<16>(64,64,LAUNCH_ITER, i);
+    run_test_shfl_down_const_delta_width<16>(64,64,LAUNCH_ITER, i);
   }
 
   for (int i = 1; i <= 1000000; i *= 10) {
-    run_test_shfl_up_const_delta_width<32>(64,64,LAUNCH_ITER, i);
+    run_test_shfl_down_const_delta_width<32>(64,64,LAUNCH_ITER, i);
   }
 
   for (int i = 1; i <= 1000000; i *= 10) {
-    run_test_shfl_up_const_delta_width<64>(64,64,LAUNCH_ITER, i);
+    run_test_shfl_down_const_delta_width<64>(64,64,LAUNCH_ITER, i);
   }
 
   return 0;
