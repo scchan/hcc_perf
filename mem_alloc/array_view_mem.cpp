@@ -1,12 +1,21 @@
 #include "hc.hpp"
 #include<iostream>
+#include<cstdlib>
 
-#define VECTOR_SIZE 1024 * 1024 * 128
+#define VECTOR_SIZE 1024 * 1024 * (512/4)
 
-int main() {
+int main(int i, char* argv[]) {
+
+  int buffer_size_mb = 256;
+  if (i == 2) {
+    buffer_size_mb = atoi(argv[1]);
+  }
+
+  int vector_size = buffer_size_mb * (1024 * 1024) / 4;
+
   // simple vector addition example
-  std::vector<int> data0(VECTOR_SIZE, 1);
-  std::vector<int> data1(VECTOR_SIZE, 2);
+  std::vector<int> data0(vector_size, 1);
+  std::vector<int> data1(data0.size(), 2);
   std::vector<int> data_out(data0.size(), 0);
 
   hc::array_view<int, 1> av0(data0.size(), data0);
