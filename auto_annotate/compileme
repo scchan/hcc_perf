@@ -1,0 +1,3 @@
+#!/bin/bash
+
+hcc -hc `hcc-config --cxxflags --ldflags ` test_math.cpp -o test_math -lm -Xclang  -fauto-compile-for-accelerator 
