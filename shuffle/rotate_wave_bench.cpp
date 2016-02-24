@@ -33,9 +33,73 @@ void run_amdgcn_wavefront_shift_right
                  (hipLaunchParm lp , int* input, int* output, int iter) {
   int id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
   int data = input[id];
+
+#if 0
+  #pragma unroll 32
   for(int i = 0; i < iter; i++) {
     data = amdgcn_wavefront_shift_right(data);
   }
+#endif
+
+
+
+
+  int i = 0;
+
+
+#define UNROLL16
+#ifdef UNROLL16
+#define UNROLL_16   16
+  for (; (i+UNROLL_16) < iter; i+=UNROLL_16) {
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+  }
+#endif
+
+
+#ifdef UNROLL8
+#define UNROLL_8   8
+  for (; (i+UNROLL_8) < iter; i+=UNROLL_8) {
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+  }
+#endif
+
+
+//#define UNROLL2 1
+#ifdef UNROLL2
+#define UNROLL_2   2
+  for (; (i+UNROLL_2) < iter; i+=UNROLL_2) {
+    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wavefront_shift_right(data);
+  }
+#endif
+
+
+  for(; i < iter; i++) {
+    data = amdgcn_wavefront_shift_right(data);
+  }
+
   output[id] = data;
 }
 
