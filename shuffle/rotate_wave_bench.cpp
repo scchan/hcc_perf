@@ -25,11 +25,11 @@ float finalizeEvents(hipEvent_t start, hipEvent_t stop){
 	return kernel_time;
 }
 
-extern "C" int amdgcn_wavefront_shift_right(int) __HC__;
+extern "C" int amdgcn_wave_rshift_1(int) __HC__;
 
 
 __global__ 
-void run_amdgcn_wavefront_shift_right
+void run_amdgcn_wave_rshift_1
                  (hipLaunchParm lp , int* input, int* output, int iter) {
   int id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
   int data = input[id];
@@ -37,12 +37,11 @@ void run_amdgcn_wavefront_shift_right
 #if 0
   #pragma unroll 32
   for(int i = 0; i < iter; i++) {
-    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wave_rshift_1(data);
   }
-#endif
 
 
-
+#else
 
   int i = 0;
 
@@ -51,22 +50,22 @@ void run_amdgcn_wavefront_shift_right
 #ifdef UNROLL16
 #define UNROLL_16   16
   for (; (i+UNROLL_16) < iter; i+=UNROLL_16) {
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
   }
 #endif
 
@@ -74,14 +73,14 @@ void run_amdgcn_wavefront_shift_right
 #ifdef UNROLL8
 #define UNROLL_8   8
   for (; (i+UNROLL_8) < iter; i+=UNROLL_8) {
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
   }
 #endif
 
@@ -90,20 +89,22 @@ void run_amdgcn_wavefront_shift_right
 #ifdef UNROLL2
 #define UNROLL_2   2
   for (; (i+UNROLL_2) < iter; i+=UNROLL_2) {
-    data = amdgcn_wavefront_shift_right(data);
-    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wave_rshift_1(data);
+    data = amdgcn_wave_rshift_1(data);
   }
 #endif
 
 
   for(; i < iter; i++) {
-    data = amdgcn_wavefront_shift_right(data);
+    data = amdgcn_wave_rshift_1(data);
   }
+
+#endif
 
   output[id] = data;
 }
 
-int test_amdgcn_wavefront_shift_right
+int test_amdgcn_wave_rshift_1
               (const int n, const int blockSize, const int launch_iter=1, const int shfl_iter=1, const bool verify=true) {
 
   const int WIDTH = 64;
@@ -131,7 +132,7 @@ int test_amdgcn_wavefront_shift_right
 
     initializeEvents(&start, &stop);
 
-    hipLaunchKernel(HIP_KERNEL_NAME(run_amdgcn_wavefront_shift_right)
+    hipLaunchKernel(HIP_KERNEL_NAME(run_amdgcn_wave_rshift_1)
                     , dim3(n/blockSize), dim3(blockSize), 0, 0
                     , gpuInput, gpuOutput, shfl_iter); 
 
@@ -144,7 +145,7 @@ int test_amdgcn_wavefront_shift_right
   initializeEvents(&start, &stop);
 
   for (int i = 0; i < launch_iter; i++) {
-    hipLaunchKernel(HIP_KERNEL_NAME(run_amdgcn_wavefront_shift_right)
+    hipLaunchKernel(HIP_KERNEL_NAME(run_amdgcn_wave_rshift_1)
                     , dim3(n/blockSize), dim3(blockSize), 0, 0
                     , gpuInput, gpuOutput, shfl_iter); 
   }
@@ -193,7 +194,7 @@ int main() {
 #define LAUNCH_ITER 10
 
   for (int i = 1; i <= 1000000; i *= 10) {
-    test_amdgcn_wavefront_shift_right(64,64,LAUNCH_ITER, i);
+    test_amdgcn_wave_rshift_1(64,64,LAUNCH_ITER, i);
   }
   return 0;
 }
