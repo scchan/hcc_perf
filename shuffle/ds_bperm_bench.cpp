@@ -89,6 +89,15 @@ int test_ds_bperm(const int n, const int blockSize, const int launch_iter=1, con
   // verification
   int errors = 0;
   if (verify) {
+
+#define VERBOSE 1
+
+#ifdef VERBOSE
+    for (int i = 0; i < n; i++) {
+      std::cout << "input[" << i << "]=" << input[i] << std::endl;
+    }
+#endif
+
     for (int i = 0; i < n; i+=WIDTH) {
       int local_output[WIDTH];
       for (int j = 0; j < shfl_iter; j++) {
@@ -101,6 +110,11 @@ int test_ds_bperm(const int n, const int blockSize, const int launch_iter=1, con
       }
       for (int k = 0; k < WIDTH; k++) {
         if (input[i+k] != output[i+k]) {
+
+#ifdef VERBOSE
+          std::cout << "output[" << (i+k) << "]: expected=" <<  input[i+k] << " actual=" << output[i+k] << std::endl;
+#endif
+
           errors++;
         }
       }
@@ -123,9 +137,14 @@ int test_ds_bperm(const int n, const int blockSize, const int launch_iter=1, con
 int main() {
 #define LAUNCH_ITER 10
 
+#if 0
   for (int i = 1; i <= 1000000; i *= 10) {
     test_ds_bperm(64,64,LAUNCH_ITER, i);
   }
+#endif
+  
+  test_ds_bperm(64,64,LAUNCH_ITER, 1);
+ 
 
   return 0;
 }
