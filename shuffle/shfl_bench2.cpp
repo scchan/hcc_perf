@@ -33,7 +33,32 @@ void run_shfl_const_width
                  (hipLaunchParm lp , int* input, int* output, int iter) {
   int id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
   int data = input[id];
-  for(int i = 0; i < iter; i++) {
+
+  int i = 0;
+#define UNROLL16
+#ifdef UNROLL16
+#define UNROLL_16   16
+  for (; (i+UNROLL_16) < iter; i+=UNROLL_16) {
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+    data = __shfl(data,data,WIDTH);
+  }
+#endif
+
+  for(; i < iter; i++) {
     data = __shfl(data, data, WIDTH);
   }
   output[id] = data;
@@ -137,7 +162,11 @@ void run_test_shfl_const_width(const int num, const int blockSize, const int lau
 
 
 
-#ifdef __HCC__
+
+
+
+#ifdef ACTIVELANE_BENCH
+
 
 __global__ 
 void run_activelaneperm_random
@@ -235,7 +264,9 @@ void run_test_activelaneperm_random(const int num, const int blockSize, const in
   test_activelaneperm_random(num, blockSize, launch_iter, shfl_iter);
 }
 
-#endif // #ifdef __HCC__
+#endif // #ifdef ACTIVELANE_BENCH
+
+
 
 
 int main() {
@@ -245,7 +276,8 @@ int main() {
     run_test_shfl_const_width(64,64,LAUNCH_ITER, i);
   }
 
-#ifdef __HCC__
+
+#ifdef ACTIVELANE_BENCH
   for (int i = 1; i <= 1000000; i *= 10) {
     run_test_activelaneperm_random(64,64,LAUNCH_ITER, i);
   }

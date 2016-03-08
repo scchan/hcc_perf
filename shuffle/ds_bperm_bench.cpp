@@ -25,16 +25,44 @@ float finalizeEvents(hipEvent_t start, hipEvent_t stop){
 	return kernel_time;
 }
 
-extern "C" int amdgcn_ds_bpermute(int index, int src);
+extern "C" int amdgcn_ds_bpermute(int index, int src) __HC__;
 
 __global__ 
 void run_ds_bperm
                  (hipLaunchParm lp , int* input, int* output, int iter) {
   int id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
   int data = input[id];
-  for(int i = 0; i < iter; i++) {
-    data = amdgcn_ds_bpermute(data,data);
+
+  int i = 0;
+
+#define UNROLL16
+#ifdef UNROLL16
+#define UNROLL_16   16
+  for (; (i+UNROLL_16) < iter; i+=UNROLL_16) {
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
+    data = amdgcn_ds_bpermute(data*4,data);
   }
+#endif
+
+  for(; i < iter; i++) {
+    data = amdgcn_ds_bpermute(data*4,data);
+  }
+
+
   output[id] = data;
 }
 
@@ -90,7 +118,7 @@ int test_ds_bperm(const int n, const int blockSize, const int launch_iter=1, con
   int errors = 0;
   if (verify) {
 
-#define VERBOSE 1
+//#define VERBOSE 1
 
 #ifdef VERBOSE
     for (int i = 0; i < n; i++) {
@@ -137,14 +165,10 @@ int test_ds_bperm(const int n, const int blockSize, const int launch_iter=1, con
 int main() {
 #define LAUNCH_ITER 10
 
-#if 0
   for (int i = 1; i <= 1000000; i *= 10) {
     test_ds_bperm(64,64,LAUNCH_ITER, i);
   }
-#endif
   
-  test_ds_bperm(64,64,LAUNCH_ITER, 1);
- 
 
   return 0;
 }
