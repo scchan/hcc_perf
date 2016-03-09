@@ -33,9 +33,36 @@ void run_shfl_xor_const_width
                  (hipLaunchParm lp , int* input, int* output, int iter) {
   int id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
   int data = input[id];
-  for(int i = 0; i < iter; i++) {
+
+  int i = 0;
+
+#define UNROLL16
+#ifdef UNROLL16
+#define UNROLL_16   16
+  for (; (i+UNROLL_16) < iter; i+=UNROLL_16) {
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
+    data = __shfl_xor(data, data, WIDTH);
     data = __shfl_xor(data, data, WIDTH);
   }
+#endif
+
+  for(; i < iter; i++) {
+    data = __shfl_xor(data, data, WIDTH);
+  }
+
   output[id] = data;
 }
 
