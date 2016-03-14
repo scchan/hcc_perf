@@ -59,27 +59,10 @@ int main() {
     // copy the printf buffer pointer
     ADDR_SPACE(1) unsigned int* printf_buffer_addr_location = (ADDR_SPACE(1) unsigned int*) (kernarg + kernel_arg_size);
     ADDR_SPACE(1) hc::PrintfPacket* printf_buffer;
-
-
-#if 0
-    union {
-      unsigned int i[2];
-      ADDR_SPACE(1) hc::PrintfPacket* ppb;
-    } u;
-    u.i[0] = printf_buffer_addr_location[0];
-    u.i[1] = printf_buffer_addr_location[1];
-    printf_buffer = u.ppb;
-#endif
-
-    #if 1
-
-
-    ADDR_SPACE(1) unsigned int* printf_buffer_ptr = (ADDR_SPACE(1) unsigned int*)&printf_buffer;
+    volatile ADDR_SPACE(0) unsigned int* printf_buffer_ptr = (ADDR_SPACE(0) unsigned int*)&printf_buffer;
     for (int i = 0; i < 2; i++) {
       printf_buffer_ptr[i] = printf_buffer_addr_location[i];
     }
-    #endif
-    
 
     hc::printf(printf_buffer, print_hello);
     hc::printf(printf_buffer, print_hi, i[0]);
