@@ -1,6 +1,6 @@
 #!/bin/bash
 
-hcc ` hcc-config --cxxflags ` main.cpp sum.cpp -c
-ar rcs libdummy.a sum.o
-hcc `hcc-config --cxxflags --ldflags` -L ./ -ldummy main.cpp -o sum
+hcc ` hcc-config --cxxflags ` -DSTATIC_LIB static_library1.cpp -c -o static_library1.o
+ar rcs libstatic_library1.a static_library1.o
+hcc `hcc-config --cxxflags --ldflags` -L ./ -lstatic_library1 static_library1.cpp -o test
 
