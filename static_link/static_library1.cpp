@@ -1,4 +1,3 @@
-// XFAIL: Linux
 // RUN: %hc -DSTATIC_LIB %s -c -o static_library1.o
 // RUN: ar rcs libstatic_library1.a static_library1.o
 // RUN: %clang %s -L%T -lstatic_library1.a -o %t.out && %t.out
