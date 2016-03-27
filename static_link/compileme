@@ -1,0 +1,6 @@
+#!/bin/bash
+
+hcc ` hcc-config --cxxflags ` main.cpp sum.cpp -c
+ar rcs libdummy.a sum.o
+hcc `hcc-config --cxxflags --ldflags` -L ./ -ldummy main.cpp -o sum
+
