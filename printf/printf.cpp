@@ -1,5 +1,3 @@
-
-
 #include<hc.hpp>
 #include<hc_printf.hpp>
 
