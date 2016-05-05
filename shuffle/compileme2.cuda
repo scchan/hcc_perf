@@ -4,4 +4,7 @@
 
 
 $HIP_PATH/bin/hipcc shfl_bench2.cpp -o shfl_bench2 -std=c++11 -gencode=arch=compute_52,code=sm_52
+$HIP_PATH/bin/hipcc shfup_bench.cpp -o shfup_bench -std=c++11 -gencode=arch=compute_52,code=sm_52
+$HIP_PATH/bin/hipcc shfdown_bench.cpp -o shfdown_bench -std=c++11 -gencode=arch=compute_52,code=sm_52
+$HIP_PATH/bin/hipcc shflxor_bench.cpp -o shflxor_bench -std=c++11 -gencode=arch=compute_52,code=sm_52
 
