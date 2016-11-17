@@ -1,4 +1,5 @@
 #include <iostream>
+#include <iomanip>
 #include <hc.hpp>
 #include <StackTimer.hpp>
 
@@ -23,8 +24,17 @@ void run_benchmark(hc::accelerator& acc) {
   std::cout << "accelerator #" << count << std::endl;
   count++;
 
-  std::cout << "(Size)\t\t(Average Time (ms))\t\t(Average Bandwidth (GB/s))" << std::endl;
-  std::cout << "==============================================================================" << std::endl;
+
+  constexpr int column_width = 30;
+  std::cout << std::setw(column_width);
+  std::cout << "(Size)";
+  std::cout << std::setw(column_width);
+  std::cout << "(Average Time (ms))";
+  std::cout << std::setw(column_width);
+  std::cout << "(Average Bandwidth (GB/s))";
+  std::cout << std::endl;
+
+  std::cout << "===============================================================================================" << std::endl;
   
   std::vector<int> sizes = { 
                                  1 * size_MB
@@ -41,16 +51,27 @@ void run_benchmark(hc::accelerator& acc) {
     TimerEventQueue eventQueue;
     array_write_bandwidth(acc, *s, 10, eventQueue);
 
-    if (*s >= size_GB) {
-      std::cout << *s/(float)size_GB << " GB";
-    } else if (*s >= size_MB) {
+    std::cout << std::setw(column_width-4);
+    std::cout << std::setprecision(0);
+    if (*s >= size_MB) {
       std::cout << *s/(float)size_MB << " MB";
     } else if (*s >= size_KB) {
       std::cout << *s/(float)size_KB << " KB";
     } else {
       std::cout << *s << " B";
     }
-    std::cout << "\t\t" << eventQueue.getAverageTime() << "\t\t\t\t" <<  ((double)*s/double(1024*1024*1024))/(eventQueue.getAverageTime() / 1000.0) << std::endl;
+
+    std::cout << std::setw(column_width-4);
+    std::cout << std::fixed;
+    std::cout << std::setprecision(4);
+    std::cout << eventQueue.getAverageTime();
+
+    std::cout << std::setw(column_width-4);
+    std::cout << std::fixed;
+    std::cout << std::setprecision(4);
+    std::cout << ((double)*s/double(1024*1024*1024))/(eventQueue.getAverageTime() / 1000.0);
+    
+    std::cout << std::endl;
   }
   std::cout << std::endl;
 }
