@@ -1,27 +1,44 @@
 #include <iostream>
 #include <iomanip>
+#include <string>
+
 #include <hc.hpp>
+#include <hc_am.hpp>
 #include <StackTimer.hpp>
 
 constexpr int size_KB = 1024;
 constexpr int size_MB = size_KB * 1024;
 constexpr int size_GB = size_MB * 1024;
 
-void array_write_bandwidth(hc::accelerator& a, const unsigned int size, const unsigned int iter, TimerEventQueue& eventQueue) {
+void array_write_bandwidth(hc::accelerator& a, const unsigned int size, const unsigned int iter, TimerEventQueue& eventQueue, bool pinnedHostBuffer) {
   hc::array<char,1> buffer(size, a.get_default_view());
-  char* host_buffer = (char*)malloc(size);
+  char* host_buffer = nullptr;
+  if (pinnedHostBuffer) {
+    host_buffer = hc::am_alloc(size, a, amHostPinned);
+  }
+  else {
+    host_buffer = (char*)malloc(size);
+  }
+
   for (int i = 0; i < iter; i++) {
     SimpleTimer timer(eventQueue, __FUNCTION__);
     hc::completion_future future = hc::copy_async(host_buffer, host_buffer+size, buffer);
     future.wait();
   }
-  free(host_buffer);
+
+  if (pinnedHostBuffer) {
+    hc::am_free(host_buffer);
+  }
+  else {
+    free(host_buffer);
+  }
 }
 
-void run_benchmark(hc::accelerator& acc) {
+void run_benchmark(hc::accelerator& acc, bool pinnedHostBuffer) {
   static int count = 0;
   std::cout << std::endl;
   std::cout << "accelerator #" << count << std::endl;
+  std::cout << static_cast<const char*>(pinnedHostBuffer?"Pinned":"Unpinned") << " Host Memory Test " << std::endl;;
   count++;
 
 
@@ -49,7 +66,7 @@ void run_benchmark(hc::accelerator& acc) {
 
   for (auto s = sizes.begin(); s!=sizes.end(); s++) {
     TimerEventQueue eventQueue;
-    array_write_bandwidth(acc, *s, 10, eventQueue);
+    array_write_bandwidth(acc, *s, 10, eventQueue, pinnedHostBuffer);
 
     std::cout << std::setw(column_width-4);
     std::cout << std::setprecision(0);
@@ -77,13 +94,22 @@ void run_benchmark(hc::accelerator& acc) {
 }
 
 int main(int argc, char* argv[]) {
+
+  amdtScopedMarker fmarker =   HC_SCOPE_MARKER ;
+
   std::vector<hc::accelerator> all_accelerators = hc::accelerator::get_all();
   for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
     if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc);
+      run_benchmark(*acc, false);
     }
   }
+
+  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
+    if (acc->is_hsa_accelerator()) {
+      run_benchmark(*acc, true);
+    }
+  }
+
   return 0;
 }
-
 
