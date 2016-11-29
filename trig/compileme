@@ -1,0 +1,4 @@
+#!/bin/bash
+
+hcc `hcc-config --cxxflags --ldflags` sin.cpp -o sin -lm
+hcc `hcc-config --cxxflags --ldflags` cos.cpp -o cos -lm
