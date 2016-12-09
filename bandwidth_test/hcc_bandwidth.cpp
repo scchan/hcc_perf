@@ -10,6 +10,73 @@ constexpr int size_KB = 1024;
 constexpr int size_MB = size_KB * 1024;
 constexpr int size_GB = size_MB * 1024;
 
+enum BenchmarkKind {
+   ARRAY_READ_BENCHMARK = 0
+  ,ARRAY_WRITE_BENCHMARK
+  ,BUFFER_READ_BENCHMARK
+  ,BUFFER_WRITE_BENCHMARK
+  ,BENCHMARKKIND_LAST
+};
+
+const char* BenchmarkName[] = {
+  "Array Read"
+  ,"Array Write"
+  ,"Buffer Read"
+  ,"Buffer Write"
+  ,nullptr
+};
+
+
+void buffer_bandwidth(hc::accelerator& a, const unsigned int size, const unsigned int iter, TimerEventQueue& eventQueue, bool pinnedHostBuffer, BenchmarkKind kind) {
+
+  if (!pinnedHostBuffer) {
+    // skip for now
+    return;
+  }
+
+  char* host_buffer;
+  if (pinnedHostBuffer) {
+    host_buffer = hc::am_alloc(size, a, amHostPinned);
+  }
+  else {
+    host_buffer = (char*)malloc(size);
+  }
+
+  char* device_buffer = hc::am_alloc(size, a, 0);
+
+  char* source_buffer = nullptr;
+  char* dest_buffer = nullptr;
+
+  switch(kind) {
+    case BUFFER_READ_BENCHMARK:
+     source_buffer = device_buffer;
+     dest_buffer = host_buffer;
+     break;
+    case BUFFER_WRITE_BENCHMARK:  
+     source_buffer = host_buffer;
+     dest_buffer = device_buffer;
+     break;
+    default:
+     exit(1);
+  };
+  
+  hc::accelerator_view acc_view = a.get_default_view();
+  for (int i = 0; i < iter; i++) {
+    SimpleTimer timer(eventQueue, __FUNCTION__);
+    hc::completion_future future = acc_view.copy_async(source_buffer, dest_buffer, size);
+    future.wait();
+  }
+
+  if (pinnedHostBuffer) {
+    hc::am_free(host_buffer);
+  }
+  else {
+    free(host_buffer);
+  }
+  hc::am_free(device_buffer);
+}
+
+
 void array_write_bandwidth(hc::accelerator& a, const unsigned int size, const unsigned int iter, TimerEventQueue& eventQueue, bool pinnedHostBuffer) {
   hc::array<char,1> buffer(size, a.get_default_view());
   char* host_buffer = nullptr;
@@ -34,14 +101,39 @@ void array_write_bandwidth(hc::accelerator& a, const unsigned int size, const un
   }
 }
 
-void run_benchmark(hc::accelerator& acc, bool pinnedHostBuffer) {
-  static int count = 0;
+
+
+void array_read_bandwidth(hc::accelerator& a, const unsigned int size, const unsigned int iter, TimerEventQueue& eventQueue, bool pinnedHostBuffer) {
+  hc::array<char,1> buffer(size, a.get_default_view());
+  char* host_buffer = nullptr;
+  if (pinnedHostBuffer) {
+    host_buffer = hc::am_alloc(size, a, amHostPinned);
+  }
+  else {
+    host_buffer = (char*)malloc(size);
+  }
+
+  for (int i = 0; i < iter; i++) {
+    SimpleTimer timer(eventQueue, __FUNCTION__);
+    hc::completion_future future = hc::copy_async(buffer, host_buffer);
+    future.wait();
+  }
+
+  if (pinnedHostBuffer) {
+    hc::am_free(host_buffer);
+  }
+  else {
+    free(host_buffer);
+  }
+}
+
+
+
+void run_benchmark(hc::accelerator& acc, const int acc_id, const BenchmarkKind benchKind, const bool pinnedHostBuffer) {
   std::cout << std::endl;
-  std::cout << "accelerator #" << count << std::endl;
-  std::cout << static_cast<const char*>(pinnedHostBuffer?"Pinned":"Unpinned") << " Host Memory Test " << std::endl;;
-  count++;
-
-
+  std::cout << "accelerator #" << acc_id << std::endl;
+  std::cout << BenchmarkName[benchKind] << ",";
+  std::cout << static_cast<const char*>(pinnedHostBuffer?"Pinned":"Unpinned") << " Host Memory" << std::endl;;
   constexpr int column_width = 30;
   std::cout << std::setw(column_width);
   std::cout << "(Size)";
@@ -66,7 +158,27 @@ void run_benchmark(hc::accelerator& acc, bool pinnedHostBuffer) {
 
   for (auto s = sizes.begin(); s!=sizes.end(); s++) {
     TimerEventQueue eventQueue;
-    array_write_bandwidth(acc, *s, 10, eventQueue, pinnedHostBuffer);
+
+    switch(benchKind) {
+      case ARRAY_READ_BENCHMARK:
+        array_read_bandwidth(acc, *s, 10, eventQueue, pinnedHostBuffer);
+        break;
+      case ARRAY_WRITE_BENCHMARK:
+        array_write_bandwidth(acc, *s, 10, eventQueue, pinnedHostBuffer);
+        break;
+      case BUFFER_READ_BENCHMARK:
+      case BUFFER_WRITE_BENCHMARK:
+        buffer_bandwidth(acc, *s, 10, eventQueue, pinnedHostBuffer, benchKind);
+        break;
+      default:
+        exit(1);
+    };
+
+    if (eventQueue.getNumEvents() == 0) {
+      std::cout << "Skipped, unsupported test" << std::endl;
+      continue;
+    }
+
 
     std::cout << std::setw(column_width-4);
     std::cout << std::setprecision(0);
@@ -98,17 +210,79 @@ int main(int argc, char* argv[]) {
   amdtScopedMarker fmarker =   HC_SCOPE_MARKER ;
 
   std::vector<hc::accelerator> all_accelerators = hc::accelerator::get_all();
+
+  
+  for (int k = 0; k < BENCHMARKKIND_LAST; k++) {
+    int acc_id = 0;
+    for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++, acc_id++) {
+      if (acc->is_hsa_accelerator()) {
+        run_benchmark(*acc, acc_id, static_cast<BenchmarkKind>(k), false);
+      }
+    }
+    
+    acc_id = 0;
+    for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++, acc_id++) {
+      if (acc->is_hsa_accelerator()) {
+        run_benchmark(*acc, acc_id, static_cast<BenchmarkKind>(k), true);
+      }
+    }
+  }
+
+#if 0
+
+
   for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
     if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc, false);
+      run_benchmark(*acc, ARRAY_READ_BENCHMARK, false);
     }
   }
 
   for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
     if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc, true);
+      run_benchmark(*acc, ARRAY_READ_BENCHMARK, true);
     }
   }
+
+  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
+    if (acc->is_hsa_accelerator()) {
+      run_benchmark(*acc, ARRAY_WRITE_BENCHMARK, false);
+    }
+  }
+
+  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
+    if (acc->is_hsa_accelerator()) {
+      run_benchmark(*acc, ARRAY_WRITE_BENCHMARK, true);
+    }
+  }
+
+
+
+
+
+  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
+    if (acc->is_hsa_accelerator()) {
+      run_benchmark(*acc, BUFFER_READ_BENCHMARK, false);
+    }
+  }
+
+  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
+    if (acc->is_hsa_accelerator()) {
+      run_benchmark(*acc, BUFFER_READ_BENCHMARK, true);
+    }
+  }
+
+  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
+    if (acc->is_hsa_accelerator()) {
+      run_benchmark(*acc, BUFFER_WRITE_BENCHMARK, false);
+    }
+  }
+
+  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
+    if (acc->is_hsa_accelerator()) {
+      run_benchmark(*acc, BUFFER_WRITE_BENCHMARK, true);
+    }
+  }
+#endif
 
   return 0;
 }
