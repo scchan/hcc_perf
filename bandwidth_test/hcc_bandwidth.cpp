@@ -6,6 +6,8 @@
 #include <hc_am.hpp>
 #include <StackTimer.hpp>
 
+#include "hc_profile.hpp"
+
 constexpr int size_KB = 1024;
 constexpr int size_MB = size_KB * 1024;
 constexpr int size_GB = size_MB * 1024;
