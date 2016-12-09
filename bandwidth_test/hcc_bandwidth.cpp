@@ -229,63 +229,6 @@ int main(int argc, char* argv[]) {
       }
     }
   }
-
-#if 0
-
-
-  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
-    if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc, ARRAY_READ_BENCHMARK, false);
-    }
-  }
-
-  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
-    if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc, ARRAY_READ_BENCHMARK, true);
-    }
-  }
-
-  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
-    if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc, ARRAY_WRITE_BENCHMARK, false);
-    }
-  }
-
-  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
-    if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc, ARRAY_WRITE_BENCHMARK, true);
-    }
-  }
-
-
-
-
-
-  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
-    if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc, BUFFER_READ_BENCHMARK, false);
-    }
-  }
-
-  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
-    if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc, BUFFER_READ_BENCHMARK, true);
-    }
-  }
-
-  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
-    if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc, BUFFER_WRITE_BENCHMARK, false);
-    }
-  }
-
-  for (auto acc = all_accelerators.begin(); acc != all_accelerators.end(); acc++) {
-    if (acc->is_hsa_accelerator()) {
-      run_benchmark(*acc, BUFFER_WRITE_BENCHMARK, true);
-    }
-  }
-#endif
-
   return 0;
 }
 
