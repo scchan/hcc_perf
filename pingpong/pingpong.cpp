@@ -16,7 +16,7 @@ int main() {
   am_status_t amStatus;
 
   // how man GPUs
-  constexpr unsigned int maxPlayers = 2;
+  constexpr unsigned int maxPlayers = 4;
 
   // how many times/gpu
   constexpr unsigned int hits = 10;
@@ -47,21 +47,12 @@ int main() {
   char* hostPinned = nullptr;
 #if USE_HC_AM
   hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), currentAccelerator
-                           //, amHostPinned
                            , amHostCoherent
                            );
   printf("shared memory address: %p\n",hostPinned);
   assert(hostPinned != nullptr);
-
-/*
-  if (maxPlayers > 1 && gpus.size() != 0) {
-    amStatus =hc:: am_map_to_peers(hostPinned, std::min((unsigned int)gpus.size(),maxPlayers-1), gpus.data());
-    assert(amStatus == AM_SUCCESS);
-  }
-*/
 #else
-
-  hsa_amd_memory_pool_t* alloc_region = static_cast<hsa_amd_memory_pool_t*>(currentAccelerator.get_hsa_am_system_region());
+  hsa_amd_memory_pool_t* alloc_region = static_cast<hsa_amd_memory_pool_t*>(currentAccelerator.get_hsa_am_finegrained_system_region());
   assert(alloc_region->handle != -1);
 
   hsa_status_t hs;
@@ -141,7 +132,8 @@ int main() {
   for (int i = 0; i < futures.size(); ++i) {
     printf("Waiting for GPU #%d to finish\n", i);
     futures[i].wait();
-    printf("GPU #%d final value: %u\n", i, finalValues[i][0]);
+    printf("GPU #%d actual final value: %u, expected final value: %u\n\n"
+            , i, finalValues[i][0], initValue + (hits-1) * numGPUs + i);
   }
 
   if (hostPinned) {
