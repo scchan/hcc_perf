@@ -19,7 +19,7 @@ int main() {
   constexpr unsigned int maxPlayers = 2;
 
   // how many times/gpu
-  constexpr unsigned int hits = 1;
+  constexpr unsigned int hits = 10;
 
   // pick the default accelerator as the first player
   hc::accelerator currentAccelerator;
@@ -29,26 +29,36 @@ int main() {
     exit(1);
   }
   else {
-    printf("Default accelerator has %zu peers\n", gpus.size());
+    std::cout << "Default accelerator: ";
+    std::wcout<< currentAccelerator.get_description();
+    std::cout << std::endl;
+
+    for (auto&& p : gpus) {
+      std::cout << "\t peer: ";
+      std::wcout<< p.get_description();
+      std::cout << std::endl;
+    }
   }
 
-  char* hostPinned = nullptr;
 
   gpus.insert(gpus.begin(), currentAccelerator);
   unsigned int numGPUs = std::min((unsigned int)gpus.size(), maxPlayers);
 
-
+  char* hostPinned = nullptr;
 #if USE_HC_AM
   hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), currentAccelerator
                            //, amHostPinned
                            , amHostCoherent
                            );
-  printf("shared memory address: 0x%p\n",hostPinned);
+  printf("shared memory address: %p\n",hostPinned);
+  assert(hostPinned != nullptr);
 
+/*
   if (maxPlayers > 1 && gpus.size() != 0) {
     amStatus =hc:: am_map_to_peers(hostPinned, std::min((unsigned int)gpus.size(),maxPlayers-1), gpus.data());
     assert(amStatus == AM_SUCCESS);
   }
+*/
 #else
 
   hsa_amd_memory_pool_t* alloc_region = static_cast<hsa_amd_memory_pool_t*>(currentAccelerator.get_hsa_am_system_region());
@@ -86,7 +96,7 @@ int main() {
         // and that each of them have loaded the inital value of 
         // "shared_counter" into their cache
         #pragma nounroll
-        for (int i = 0; i < (1024 * 1024 * 16); ++i) {
+        for (int j = 0; j < (1024 * 1024 * 16); ++j) {
           if (shared_counter->load(std::memory_order_relaxed) == 0xFFFFFFFF)
             break;
         }
