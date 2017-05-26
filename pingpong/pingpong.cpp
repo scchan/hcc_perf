@@ -79,11 +79,26 @@ int main() {
                             , hc::extent<1>(1)
                             , [=](hc::index<1> idx) [[hc]] {
 
-        unsigned int gpuID = i;
+        // spin for a while here to ensure that all GPUs have started
+        // and that each of them have loaded the inital value of 
+        // "shared_counter" into their cache
+        #pragma nounroll
+        for (int i = 0; i < (1024 * 1024 * 16); ++i) {
+          if (shared_counter->load(std::memory_order_relaxed) == 0xFFFFFFFF)
+            break;
+        }
+
+        // counts how many times this GPU has updated the shared_counter
         unsigned int count = 0;
+
+        unsigned int gpuID = i;
         unsigned int next = initValue + gpuID;
+
+        // last known value of shared_counter observed by this GPU
         unsigned int last = shared_counter->load(std::memory_order_relaxed);
 
+
+        // each GPU waits for its turn (according to the gpuID) to increment the shared_counter
         #pragma nounroll
         while (count < hits) {
           unsigned int expected = next;
@@ -91,21 +106,13 @@ int main() {
                                                         , &expected
                                                         , expected + 1
                                                         , std::memory_order_seq_cst
-                                                        , std::memory_order_relaxed)) {
-
+                                                        , std::memory_order_relaxed  
+                                                        //, std::memory_order_acquire
+                                                        )) {
             last = expected;
             next+=numGPUs;
             count++;
           }
-        }
-
-        // Make sure that all GPUs are running the kernels in parallel
-        // since kernel completion affects memory visibility
-        // Let the kernel spin for a while before quitting
-        #pragma nounroll
-        for (int i = 0; i < (1024 * 1024 * 16); ++i) {
-          if (shared_counter->load(std::memory_order_relaxed) == 0xFFFFFFFF)
-            break;
         }
 
         finalValue[0] = last;
@@ -121,9 +128,6 @@ int main() {
   for (int i = 0; i < futures.size(); ++i) {
     printf("Waiting for GPU #%d to finish\n", i);
     futures[i].wait();
-  }
-
-  for (int i = 0; i < finalValues.size(); ++i) {
     printf("GPU #%d final value: %u\n", i, finalValues[i][0]);
   }
 
