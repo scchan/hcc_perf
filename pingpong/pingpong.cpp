@@ -39,7 +39,10 @@ int main() {
 
 
 #if USE_HC_AM
-  hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), currentAccelerator, amHostPinned);
+  hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), currentAccelerator
+                           //, amHostPinned
+                           , amHostCoherent
+                           );
   printf("shared memory address: 0x%p\n",hostPinned);
 
   if (maxPlayers > 1 && gpus.size() != 0) {
