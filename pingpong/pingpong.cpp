@@ -8,6 +8,9 @@
 #include <hc.hpp>
 #include <hc_am.hpp>
 
+
+#include "hsa/hsa_ext_amd.h"
+
 int main() {
 
   am_status_t amStatus;
@@ -16,7 +19,7 @@ int main() {
   constexpr unsigned int maxPlayers = 2;
 
   // how many times/gpu
-  constexpr unsigned int hits = 0;
+  constexpr unsigned int hits = 1;
 
   // pick the default accelerator as the first player
   hc::accelerator currentAccelerator;
@@ -30,23 +33,39 @@ int main() {
   }
 
   char* hostPinned = nullptr;
-  hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), currentAccelerator, amHostPinned);
-  printf("shared memory address: 0x%p\n",hostPinned);
-
-  constexpr unsigned int initValue = 1234;
-  std::atomic<unsigned int>* shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
-
-
-#if 1
-  if (maxPlayers > 1 && gpus.size() != 0) {
-    amStatus =hc:: am_map_to_peers(hostPinned, std::min((unsigned int)gpus.size(),maxPlayers-1), gpus.data());
-    assert(amStatus == AM_SUCCESS);
-  }
-#endif
 
   gpus.insert(gpus.begin(), currentAccelerator);
   unsigned int numGPUs = std::min((unsigned int)gpus.size(), maxPlayers);
 
+
+#if USE_HC_AM
+  hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), currentAccelerator, amHostPinned);
+  printf("shared memory address: 0x%p\n",hostPinned);
+
+  if (maxPlayers > 1 && gpus.size() != 0) {
+    amStatus =hc:: am_map_to_peers(hostPinned, std::min((unsigned int)gpus.size(),maxPlayers-1), gpus.data());
+    assert(amStatus == AM_SUCCESS);
+  }
+#else
+
+  hsa_amd_memory_pool_t* alloc_region = static_cast<hsa_amd_memory_pool_t*>(currentAccelerator.get_hsa_am_system_region());
+  assert(alloc_region->handle != -1);
+
+  hsa_status_t hs;
+  hs = hsa_amd_memory_pool_allocate(*alloc_region, sizeof(std::atomic<unsigned int>), 0, (void**)&hostPinned);
+  assert(hs == HSA_STATUS_SUCCESS);
+
+
+  hsa_agent_t agents[numGPUs];
+  for (int i = 0; i < numGPUs; i++) {
+    agents[i] = *(static_cast<hsa_agent_t*> (gpus[i].get_default_view().get_hsa_agent()));
+  }
+  hs = hsa_amd_agents_allow_access(numGPUs, agents, nullptr, hostPinned);
+  assert(hs == HSA_STATUS_SUCCESS);
+#endif
+
+  constexpr unsigned int initValue = 1234;
+  std::atomic<unsigned int>* shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
   std::vector<hc::completion_future> futures;
   std::vector<hc::array_view<unsigned int,1>> finalValues;
 
@@ -108,8 +127,14 @@ int main() {
     printf("GPU #%d final value: %u\n", i, finalValues[i][0]);
   }
 
-  if (hostPinned)
+  if (hostPinned) {
+#if USE_HC_AM
     hc::am_free(hostPinned);
+#else
+    hs = hsa_amd_memory_pool_free(hostPinned);
+    assert(hs == HSA_STATUS_SUCCESS);
+#endif
+  }
 
   return 0;
 }
