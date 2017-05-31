@@ -75,28 +75,31 @@ int main(int argc, char* argv[]) {
 
   char* hostPinned = nullptr;
 #if USE_HC_AM
-  hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), currentAccelerator
-                           , amHostCoherent
-                           );
-  printf("shared memory address: %p\n",hostPinned);
-  assert(hostPinned != nullptr);
+  auto allocate_mem = [&](void** ptr, size_t size) {
+    *ptr = hc::am_alloc(size, currentAccelerator, amHostCoherent);
+     printf("shared memory address: %p\n",hostPinned);
+     assert(hostPinned != nullptr);
+  };
 #else
-  hsa_amd_memory_pool_t* alloc_region = static_cast<hsa_amd_memory_pool_t*>(currentAccelerator.get_hsa_am_finegrained_system_region());
-  assert(alloc_region->handle != -1);
+  auto allocate_mem = [&](void** ptr, size_t size) {
+    hsa_amd_memory_pool_t* alloc_region = static_cast<hsa_amd_memory_pool_t*>(currentAccelerator.get_hsa_am_finegrained_system_region());
+    assert(alloc_region->handle != -1);
 
-  hsa_status_t hs;
-  hs = hsa_amd_memory_pool_allocate(*alloc_region, sizeof(std::atomic<unsigned int>), 0, (void**)&hostPinned);
-  assert(hs == HSA_STATUS_SUCCESS);
+    hsa_status_t hs;
+    hs = hsa_amd_memory_pool_allocate(*alloc_region, sizeof(std::atomic<unsigned int>), 0, (void**)&hostPinned);
+    assert(hs == HSA_STATUS_SUCCESS);
 
 
-  hsa_agent_t agents[numGPUs];
-  for (int i = 0; i < numGPUs; i++) {
-    agents[i] = *(static_cast<hsa_agent_t*> (gpus[i].get_default_view().get_hsa_agent()));
-  }
-  hs = hsa_amd_agents_allow_access(numGPUs, agents, nullptr, hostPinned);
-  assert(hs == HSA_STATUS_SUCCESS);
+    hsa_agent_t agents[numGPUs];
+    for (int i = 0; i < numGPUs; i++) {
+      agents[i] = *(static_cast<hsa_agent_t*> (gpus[i].get_default_view().get_hsa_agent()));
+    }
+    hs = hsa_amd_agents_allow_access(numGPUs, agents, nullptr, hostPinned);
+    assert(hs == HSA_STATUS_SUCCESS);
+  };
 #endif
 
+  allocate_mem((void**)&hostPinned, sizeof(std::atomic<unsigned int>));
   std::atomic<unsigned int>* shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
   std::vector<hc::completion_future> futures;
   std::vector<hc::array_view<unsigned int,1>> finalValues;
@@ -167,7 +170,7 @@ int main(int argc, char* argv[]) {
 #if USE_HC_AM
     hc::am_free(hostPinned);
 #else
-    hs = hsa_amd_memory_pool_free(hostPinned);
+    hsa_status_t hs = hsa_amd_memory_pool_free(hostPinned);
     assert(hs == HSA_STATUS_SUCCESS);
 #endif
   }
