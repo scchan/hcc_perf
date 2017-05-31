@@ -4,6 +4,7 @@
 #include <atomic>
 #include <algorithm>
 #include <iostream>
+#include <unistd.h>
 
 #include <hc.hpp>
 #include <hc_am.hpp>
@@ -11,15 +12,43 @@
 
 #include "hsa/hsa_ext_amd.h"
 
-int main() {
-
-  am_status_t amStatus;
-
+int main(int argc, char* argv[]) {
   // how man GPUs
-  constexpr unsigned int maxPlayers = 4;
+  unsigned int maxPlayers = 4;
 
   // how many times/gpu
-  constexpr unsigned int hits = 10;
+  unsigned int hits = 10;
+
+  // initial value of the counter
+  unsigned int initValue = 1234;
+
+
+  // process the command line arguments
+  {
+    const char* options = "h:i:p:";
+    int opt;
+    while ((opt = getopt(argc, argv, options))!=-1) {
+      switch(opt) {
+        case 'h':
+          hits = atoi(optarg);
+          break;
+        case 'i':
+          initValue = atoi(optarg);
+          break;
+        case 'p':
+          maxPlayers = atoi(optarg);
+          break;
+        default:
+          abort();
+      }
+    }
+
+    printf("Max players: %d\n", maxPlayers);
+    printf("# of hits: %d\n", hits);
+    printf("Counter initial value: %d\n", initValue);
+  }
+
+  am_status_t amStatus;
 
   // pick the default accelerator as the first player
   hc::accelerator currentAccelerator;
@@ -68,7 +97,6 @@ int main() {
   assert(hs == HSA_STATUS_SUCCESS);
 #endif
 
-  constexpr unsigned int initValue = 1234;
   std::atomic<unsigned int>* shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
   std::vector<hc::completion_future> futures;
   std::vector<hc::array_view<unsigned int,1>> finalValues;
@@ -111,7 +139,6 @@ int main() {
                                                         , expected + 1
                                                         , std::memory_order_seq_cst
                                                         , std::memory_order_relaxed  
-                                                        //, std::memory_order_acquire
                                                         )) {
             last = expected;
             next+=numGPUs;
