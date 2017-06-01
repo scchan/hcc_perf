@@ -74,7 +74,11 @@ int main(int argc, char* argv[]) {
   unsigned int numGPUs = std::min((unsigned int)gpus.size(), maxPlayers);
 
   char* hostPinned = nullptr;
-#if USE_HC_AM
+
+
+#ifdef USE_LAMBDA
+
+#ifndef USE_ROCR_POOL_API
   auto allocate_mem = [&](void** ptr, size_t size) {
     *ptr = hc::am_alloc(size, currentAccelerator, amHostCoherent);
      printf("shared memory address: %p\n",hostPinned);
@@ -100,6 +104,17 @@ int main(int argc, char* argv[]) {
 #endif
 
   allocate_mem((void**)&hostPinned, sizeof(std::atomic<unsigned int>));
+
+#else
+
+  hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), currentAccelerator
+                           , amHostCoherent
+                           );
+  printf("shared memory address: %p\n",hostPinned);
+  assert(hostPinned != nullptr);
+
+#endif
+
   std::atomic<unsigned int>* shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
   std::vector<hc::completion_future> futures;
   std::vector<hc::array_view<unsigned int,1>> finalValues;
