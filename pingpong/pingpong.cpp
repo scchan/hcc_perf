@@ -35,14 +35,17 @@ int main(int argc, char* argv[]) {
   // initial value of the counter
   unsigned int initValue = 1234;
 
+  enum P2PTest {
+    LOCKFREE_ATOMIC_COUNTER = 0
+    ,LOCK_ATOMIC_COUNTER_SAME_CACHELINE
 
-  // use lock implementation of counter
-  bool useLock = true;
-
+    ,INVALID_P2P_TEST // last entry
+  };
+  P2PTest test = LOCKFREE_ATOMIC_COUNTER;
 
   // process the command line arguments
   {
-    const char* options = "h:i:p:";
+    const char* options = "h:i:p:t:";
     int opt;
     while ((opt = getopt(argc, argv, options))!=-1) {
       switch(opt) {
@@ -55,6 +58,10 @@ int main(int argc, char* argv[]) {
         case 'p':
           maxPlayers = atoi(optarg);
           break;
+        case 't':
+          test = (P2PTest) atoi(optarg);
+          assert(test < INVALID_P2P_TEST);
+          break;
         default:
           abort();
       }
@@ -63,6 +70,7 @@ int main(int argc, char* argv[]) {
     printf("Max players: %d\n", maxPlayers);
     printf("# of hits: %d\n", hits);
     printf("Counter initial value: %d\n", initValue);
+    printf("test: %d\n", test);
   }
 
   am_status_t amStatus;
@@ -91,49 +99,27 @@ int main(int argc, char* argv[]) {
   unsigned int numGPUs = std::min((unsigned int)gpus.size(), maxPlayers);
 
   char* hostPinned = nullptr;
-
-
-
-
-#if 1
-  hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator);
-
-#else
-#if USE_HC_AM
-  hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), currentAccelerator
-                           , amHostCoherent
-                           );
-  printf("shared memory address: %p\n",hostPinned);
-  assert(hostPinned != nullptr);
-#else
-  hsa_amd_memory_pool_t* alloc_region = static_cast<hsa_amd_memory_pool_t*>(currentAccelerator.get_hsa_am_finegrained_system_region());
-  assert(alloc_region->handle != -1);
-
-  hsa_status_t hs;
-  hs = hsa_amd_memory_pool_allocate(*alloc_region, sizeof(std::atomic<unsigned int>), 0, (void**)&hostPinned);
-  assert(hs == HSA_STATUS_SUCCESS);
-
-
-  hsa_agent_t agents[numGPUs];
-  for (int i = 0; i < numGPUs; i++) {
-    agents[i] = *(static_cast<hsa_agent_t*> (gpus[i].get_default_view().get_hsa_agent()));
-  }
-  hs = hsa_amd_agents_allow_access(numGPUs, agents, nullptr, hostPinned);
-  assert(hs == HSA_STATUS_SUCCESS);
-#endif
-#endif
-
-
-
-  std::atomic<unsigned int>* shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
-
-
+  
+  std::atomic<unsigned int>* shared_counter = nullptr;
   std::atomic<unsigned int>* lock = nullptr;
-  if (useLock) {
-    hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator);
-    lock = new(hostPinned) std::atomic<unsigned int>(0);
-  }
 
+  switch(test) {
+
+    case LOCKFREE_ATOMIC_COUNTER:
+      hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator);
+      shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
+      break;
+
+    case LOCK_ATOMIC_COUNTER_SAME_CACHELINE:
+      // create the counter and the lock on the same cacheline
+      hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>)*2, currentAccelerator);
+      shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
+      lock = new(hostPinned + sizeof(std::atomic<unsigned int>)) std::atomic<unsigned int>(0);
+      break;
+
+    default:
+      abort();
+  }
 
   std::vector<hc::completion_future> futures;
   std::vector<hc::array_view<unsigned int,1>> finalValues;
@@ -143,69 +129,110 @@ int main(int argc, char* argv[]) {
     hc::array_view<unsigned int,1> finalValue(1);
     finalValues.push_back(finalValue);
 
-    futures.push_back(
-      hc::parallel_for_each(gpus[i].get_default_view()
+
+    switch (test) {
+      case LOCKFREE_ATOMIC_COUNTER:
+       
+
+        futures.push_back(
+          hc::parallel_for_each(gpus[i].get_default_view()
                             , hc::extent<1>(1)
                             , [=](hc::index<1> idx) [[hc]] {
 
-        // spin for a while here to ensure that all GPUs have started
-        // and that each of them have loaded the inital value of 
-        // "shared_counter" into their cache
-        #pragma nounroll
-        for (int j = 0; j < (1024 * 1024 * 16); ++j) {
-          if (shared_counter->load(std::memory_order_relaxed) == 0xFFFFFFFF)
-            break;
-        }
+            // spin for a while here to ensure that all GPUs have started
+            // and that each of them have loaded the inital value of 
+            // "shared_counter" into their cache
+            #pragma nounroll
+            for (int j = 0; j < (1024 * 1024 * 16); ++j) {
+              if (shared_counter->load(std::memory_order_relaxed) == 0xFFFFFFFF)
+                break;
+            }
 
-        // counts how many times this GPU has updated the shared_counter
-        unsigned int count = 0;
+            // counts how many times this GPU has updated the shared_counter
+            unsigned int count = 0;
 
-        unsigned int gpuID = i;
-        unsigned int next = initValue + gpuID;
+            unsigned int gpuID = i;
+            unsigned int next = initValue + gpuID;
 
-        // last known value of shared_counter observed by this GPU
-        unsigned int last = shared_counter->load(std::memory_order_relaxed);
+            // last known value of shared_counter observed by this GPU
+            unsigned int last = shared_counter->load(std::memory_order_relaxed);
 
 
-        // each GPU waits for its turn (according to the gpuID) to increment the shared_counter
-        #pragma nounroll
-        while (count < hits) {
-          unsigned int expected = next;
-          if (useLock) {
-            unsigned int unlocked = 0;
-            if (std::atomic_compare_exchange_weak_explicit(lock
-                                                          , &unlocked
-                                                          , (unsigned int)1
-                                                          , std::memory_order_seq_cst
-                                                          , std::memory_order_relaxed  
-                                                          )) {
-
-              if (shared_counter->load(std::memory_order_relaxed) == expected) {
+            // each GPU waits for its turn (according to the gpuID) to increment the shared_counter
+            #pragma nounroll
+            while (count < hits) {
+              unsigned int expected = next;
+              if (std::atomic_compare_exchange_weak_explicit(shared_counter
+                                                           , &expected
+                                                           , expected + 1
+                                                           , std::memory_order_seq_cst
+                                                           , std::memory_order_relaxed  
+                                                           )) {
                 last = expected;
                 next+=numGPUs;
                 count++;
+              }
+            } // while(count < hits)
+            finalValue[0] = last;
+          })
+        );
+        break;
 
-                shared_counter->store(expected + 1, std::memory_order_relaxed);
-                lock->store(0, std::memory_order_release);
+
+      case LOCK_ATOMIC_COUNTER_SAME_CACHELINE:
+ 
+        futures.push_back(
+          hc::parallel_for_each(gpus[i].get_default_view()
+                              , hc::extent<1>(1)
+                              , [=](hc::index<1> idx) [[hc]] {
+
+            // spin for a while here to ensure that all GPUs have started
+            // and that each of them have loaded the inital value of 
+            // "shared_counter" into their cache
+            #pragma nounroll
+            for (int j = 0; j < (1024 * 1024 * 16); ++j) {
+              if (shared_counter->load(std::memory_order_relaxed) == 0xFFFFFFFF)
+                break;
+            }
+
+            // counts how many times this GPU has updated the shared_counter
+            unsigned int count = 0;
+
+            unsigned int gpuID = i;
+            unsigned int next = initValue + gpuID;
+
+            // last known value of shared_counter observed by this GPU
+            unsigned int last = shared_counter->load(std::memory_order_relaxed);
+
+
+            // each GPU waits for its turn (according to the gpuID) to increment the shared_counter
+             #pragma nounroll
+             while (count < hits) {
+               unsigned int expected = next;
+               unsigned int unlocked = 0;
+               if (std::atomic_compare_exchange_weak_explicit(lock
+                                                             , &unlocked
+                                                             , (unsigned int)1
+                                                             , std::memory_order_seq_cst
+                                                             , std::memory_order_relaxed  
+                                                             )) {
+
+                 if (shared_counter->load(std::memory_order_relaxed) == expected) {
+                   last = expected;
+                   next+=numGPUs;
+                   count++;
+                   shared_counter->store(expected + 1, std::memory_order_relaxed);
+                 }
+                 lock->store(0, std::memory_order_release);
               }
             }
-          }
-          else {
-            if (std::atomic_compare_exchange_weak_explicit(shared_counter
-                                                          , &expected
-                                                          , expected + 1
-                                                          , std::memory_order_seq_cst
-                                                          , std::memory_order_relaxed  
-                                                          )) {
-              last = expected;
-              next+=numGPUs;
-              count++;
-            }
-          }
-        }
-        finalValue[0] = last;
-      })
-    );
+            finalValue[0] = last;
+          })
+        );
+        break;
+      default:
+        abort();
+    }
 
     std::cout << "GPU %" << i << "(" ;
     std::wcout<< gpus[i].get_description();
@@ -220,20 +247,12 @@ int main(int argc, char* argv[]) {
             , i, finalValues[i][0], initValue + (hits-1) * numGPUs + i);
   }
 
-  if (hostPinned) {
-#if 1
-    hc::am_free(shared_counter);
-    if (useLock) {
-      hc::am_free(lock);
-    }
-#else
-#if USE_HC_AM
-    hc::am_free(hostPinned);
-#else
-    hs = hsa_amd_memory_pool_free(hostPinned);
-    assert(hs == HSA_STATUS_SUCCESS);
-#endif
-#endif
+  switch(test) {
+    case LOCKFREE_ATOMIC_COUNTER:
+    case LOCK_ATOMIC_COUNTER_SAME_CACHELINE:
+      hc::am_free(shared_counter);
+      break;
+    default: ;
   }
 
   return 0;
