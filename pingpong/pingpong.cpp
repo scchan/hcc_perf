@@ -12,6 +12,19 @@
 
 #include "hsa/hsa_ext_amd.h"
 
+
+static inline void* allocate_shared_mem(size_t size, hc::accelerator accelerator) {
+
+  void* hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), accelerator
+                           , amHostCoherent
+                           );
+  printf("shared memory address: %p\n",hostPinned);
+  assert(hostPinned != nullptr);
+  return hostPinned;
+}
+
+
+
 int main(int argc, char* argv[]) {
   // how man GPUs
   unsigned int maxPlayers = 4;
@@ -21,6 +34,10 @@ int main(int argc, char* argv[]) {
 
   // initial value of the counter
   unsigned int initValue = 1234;
+
+
+  // use lock implementation of counter
+  bool useLock = true;
 
 
   // process the command line arguments
@@ -74,6 +91,14 @@ int main(int argc, char* argv[]) {
   unsigned int numGPUs = std::min((unsigned int)gpus.size(), maxPlayers);
 
   char* hostPinned = nullptr;
+
+
+
+
+#if 1
+  hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator);
+
+#else
 #if USE_HC_AM
   hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), currentAccelerator
                            , amHostCoherent
@@ -96,8 +121,20 @@ int main(int argc, char* argv[]) {
   hs = hsa_amd_agents_allow_access(numGPUs, agents, nullptr, hostPinned);
   assert(hs == HSA_STATUS_SUCCESS);
 #endif
+#endif
+
+
 
   std::atomic<unsigned int>* shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
+
+
+  std::atomic<unsigned int>* lock = nullptr;
+  if (useLock) {
+    hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator);
+    lock = new(hostPinned) std::atomic<unsigned int>(0);
+  }
+
+
   std::vector<hc::completion_future> futures;
   std::vector<hc::array_view<unsigned int,1>> finalValues;
 
@@ -134,18 +171,38 @@ int main(int argc, char* argv[]) {
         #pragma nounroll
         while (count < hits) {
           unsigned int expected = next;
-          if (std::atomic_compare_exchange_weak_explicit(shared_counter
-                                                        , &expected
-                                                        , expected + 1
-                                                        , std::memory_order_seq_cst
-                                                        , std::memory_order_relaxed  
-                                                        )) {
-            last = expected;
-            next+=numGPUs;
-            count++;
+          if (useLock) {
+            unsigned int unlocked = 0;
+            if (std::atomic_compare_exchange_weak_explicit(lock
+                                                          , &unlocked
+                                                          , (unsigned int)1
+                                                          , std::memory_order_seq_cst
+                                                          , std::memory_order_relaxed  
+                                                          )) {
+
+              if (shared_counter->load(std::memory_order_relaxed) == expected) {
+                last = expected;
+                next+=numGPUs;
+                count++;
+
+                shared_counter->store(expected + 1, std::memory_order_relaxed);
+                lock->store(0, std::memory_order_release);
+              }
+            }
+          }
+          else {
+            if (std::atomic_compare_exchange_weak_explicit(shared_counter
+                                                          , &expected
+                                                          , expected + 1
+                                                          , std::memory_order_seq_cst
+                                                          , std::memory_order_relaxed  
+                                                          )) {
+              last = expected;
+              next+=numGPUs;
+              count++;
+            }
           }
         }
-
         finalValue[0] = last;
       })
     );
@@ -164,11 +221,18 @@ int main(int argc, char* argv[]) {
   }
 
   if (hostPinned) {
+#if 1
+    hc::am_free(shared_counter);
+    if (useLock) {
+      hc::am_free(lock);
+    }
+#else
 #if USE_HC_AM
     hc::am_free(hostPinned);
 #else
     hs = hsa_amd_memory_pool_free(hostPinned);
     assert(hs == HSA_STATUS_SUCCESS);
+#endif
 #endif
   }
 
