@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iostream>
 #include <unistd.h>
+#include <thread>
 
 #include <hc.hpp>
 #include <hc_am.hpp>
@@ -13,16 +14,24 @@
 #include "hsa/hsa_ext_amd.h"
 
 
-static inline void* allocate_shared_mem(size_t size, hc::accelerator accelerator) {
+static inline void* allocate_shared_mem(size_t size, hc::accelerator accelerator, int allocationMode) {
 
   void* hostPinned = hc::am_alloc(sizeof(std::atomic<unsigned int>), accelerator
-                           , amHostCoherent
+                           , allocationMode
                            );
   printf("shared memory address: %p\n",hostPinned);
   assert(hostPinned != nullptr);
   return hostPinned;
 }
 
+static inline void __buffer_flush() [[hc]] {
+#if 0
+  asm volatile (
+         "s_waitcnt vmcnt(0);"
+         "buffer_wbinvl1_vol;"
+         );
+#endif
+}
 
 
 int main(int argc, char* argv[]) {
@@ -35,17 +44,21 @@ int main(int argc, char* argv[]) {
   // initial value of the counter
   unsigned int initValue = 1234;
 
+  int allocationMode = amHostCoherent;
+
+  bool threadEmptyKernel = false;
+
   enum P2PTest {
     LOCKFREE_ATOMIC_COUNTER = 0
-    ,LOCK_ATOMIC_COUNTER_SAME_CACHELINE
-
+    ,LOCK_ATOMIC_COUNTER_SAME_CACHELINE = 1
+    ,LOCK_ATOMIC_COUNTER_DIFFERENT_CACHELINE = 2
     ,INVALID_P2P_TEST // last entry
   };
   P2PTest test = LOCKFREE_ATOMIC_COUNTER;
 
   // process the command line arguments
   {
-    const char* options = "h:i:p:t:";
+    const char* options = "eh:i:p:t:a:";
     int opt;
     while ((opt = getopt(argc, argv, options))!=-1) {
       switch(opt) {
@@ -61,6 +74,14 @@ int main(int argc, char* argv[]) {
         case 't':
           test = (P2PTest) atoi(optarg);
           assert(test < INVALID_P2P_TEST);
+          break;
+        case 'a':
+          {
+            allocationMode = atoi(optarg);
+            break;
+          }
+        case 'e':
+          threadEmptyKernel = true;
           break;
         default:
           abort();
@@ -106,16 +127,25 @@ int main(int argc, char* argv[]) {
   switch(test) {
 
     case LOCKFREE_ATOMIC_COUNTER:
-      hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator);
+      hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator, allocationMode);
       shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
       break;
 
     case LOCK_ATOMIC_COUNTER_SAME_CACHELINE:
       // create the counter and the lock on the same cacheline
-      hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>)*2, currentAccelerator);
+      hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>)*2, currentAccelerator, allocationMode);
       shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
       lock = new(hostPinned + sizeof(std::atomic<unsigned int>)) std::atomic<unsigned int>(0);
       break;
+
+    case LOCK_ATOMIC_COUNTER_DIFFERENT_CACHELINE:
+      // create the counter and the lock on the same cacheline
+      hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator, allocationMode);
+      shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
+      hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator, allocationMode);
+      lock = new(hostPinned) std::atomic<unsigned int>(0);
+      break;
+
 
     default:
       abort();
@@ -162,6 +192,9 @@ int main(int argc, char* argv[]) {
             #pragma nounroll
             while (count < hits) {
               unsigned int expected = next;
+
+              __buffer_flush();
+
               if (std::atomic_compare_exchange_weak_explicit(shared_counter
                                                            , &expected
                                                            , expected + 1
@@ -171,6 +204,10 @@ int main(int argc, char* argv[]) {
                 last = expected;
                 next+=numGPUs;
                 count++;
+
+
+                __buffer_flush();
+
               }
             } // while(count < hits)
             finalValue[0] = last;
@@ -180,7 +217,9 @@ int main(int argc, char* argv[]) {
 
 
       case LOCK_ATOMIC_COUNTER_SAME_CACHELINE:
+      case LOCK_ATOMIC_COUNTER_DIFFERENT_CACHELINE:
  
+
         futures.push_back(
           hc::parallel_for_each(gpus[i].get_default_view()
                               , hc::extent<1>(1)
@@ -210,6 +249,9 @@ int main(int argc, char* argv[]) {
              while (count < hits) {
                unsigned int expected = next;
                unsigned int unlocked = 0;
+
+               __buffer_flush();
+
                if (std::atomic_compare_exchange_weak_explicit(lock
                                                              , &unlocked
                                                              , (unsigned int)1
@@ -224,6 +266,9 @@ int main(int argc, char* argv[]) {
                    shared_counter->store(expected + 1, std::memory_order_relaxed);
                  }
                  lock->store(0, std::memory_order_release);
+
+
+                 __buffer_flush();
               }
             }
             finalValue[0] = last;
@@ -240,6 +285,34 @@ int main(int argc, char* argv[]) {
   }
   printf("All GPUs have started\n");
 
+ 
+  std::atomic<bool> allDone(false);
+  std::thread* emptyKernels = nullptr;
+  if (threadEmptyKernel) {
+
+    // we create a host thread that keeps on 
+    // launching empty kernels to differnt devices
+    // we hope that the barrier after kernel would
+    // flush and invalidate the cache
+    emptyKernels = new std::thread([&]() {
+    
+      std::vector<hc::accelerator_view> acc_views;
+      for(auto&& a : gpus) {
+        acc_views.push_back(a.create_view());
+      }
+
+      while(!allDone.load()) {
+        for(auto&& v : acc_views) {
+          // launch an empty kenrel
+          hc::parallel_for_each(v, hc::extent<1>(1), [](hc::index<1> i) [[hc]] {
+
+          });
+        }
+      }
+    });
+  }
+
+
   for (int i = 0; i < futures.size(); ++i) {
     printf("Waiting for GPU #%d to finish\n", i);
     futures[i].wait();
@@ -247,10 +320,20 @@ int main(int argc, char* argv[]) {
             , i, finalValues[i][0], initValue + (hits-1) * numGPUs + i);
   }
 
+  if (emptyKernels != nullptr) {
+    allDone.store(true);
+    emptyKernels->join();
+    delete emptyKernels;
+  }
+
   switch(test) {
     case LOCKFREE_ATOMIC_COUNTER:
     case LOCK_ATOMIC_COUNTER_SAME_CACHELINE:
       hc::am_free(shared_counter);
+      break;
+    case LOCK_ATOMIC_COUNTER_DIFFERENT_CACHELINE:
+      hc::am_free(shared_counter);
+      hc::am_free(lock);
       break;
     default: ;
   }
