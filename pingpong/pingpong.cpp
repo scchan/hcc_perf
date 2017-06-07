@@ -128,7 +128,28 @@ int main(int argc, char* argv[]) {
 
     case LOCKFREE_ATOMIC_COUNTER:
       hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator, allocationMode);
-      shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
+      if (allocationMode == 0) {
+
+        am_status_t astatus;
+        astatus = hc::am_map_to_peers(hostPinned, gpus.size(), gpus.data());
+        assert(astatus == AM_SUCCESS);
+        
+        unsigned int init_counter = 0;
+        currentAccelerator.get_default_view().copy(&init_counter, hostPinned, sizeof(unsigned int));
+#if 0
+        std::vector<hsa_agent_t> agents;
+        for(auto&& a : gpus) {
+          agents.push_back(*reinterpret_cast<hsa_agent_t*>(a.get_hsa_agent()));
+        }
+
+        hsa_status_t status;
+        status = hsa_amd_agents_allow_access(agents.size(), agents.data(), NULL, hostPinned);
+        assert(status == HSA_STATUS_SUCCESS);
+#endif
+      }
+      else {
+        shared_counter = new(hostPinned) std::atomic<unsigned int>(initValue);
+      }
       break;
 
     case LOCK_ATOMIC_COUNTER_SAME_CACHELINE:
