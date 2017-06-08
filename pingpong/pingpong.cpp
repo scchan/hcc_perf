@@ -128,14 +128,19 @@ int main(int argc, char* argv[]) {
 
     case LOCKFREE_ATOMIC_COUNTER:
       hostPinned = (char*) allocate_shared_mem(sizeof(std::atomic<unsigned int>), currentAccelerator, allocationMode);
+
+
       if (allocationMode == 0) {
 
+        // The counter was allocated in device memory.
+        // Allow other peers to access this memory
         am_status_t astatus;
         astatus = hc::am_map_to_peers(hostPinned, gpus.size(), gpus.data());
         assert(astatus == AM_SUCCESS);
         
         unsigned int init_counter = 0;
         currentAccelerator.get_default_view().copy(&init_counter, hostPinned, sizeof(unsigned int));
+        shared_counter = reinterpret_cast<std::atomic<unsigned int>*>(hostPinned);
 #if 0
         std::vector<hsa_agent_t> agents;
         for(auto&& a : gpus) {
