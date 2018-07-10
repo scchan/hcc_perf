@@ -1,3 +1,6 @@
 #!/bin/bash
+set -x
 
-hcc `hcc-config --cxxflags --ldflags` hcc_bandwidth.cpp -lStackTimer -L utilities/  -I utilities/include/ -lhc_am -I/opt/rocm/profiler/CXLActivityLogger/include/ -L/opt/rocm/profiler/CXLActivityLogger/bin/x86_64/ -lCXLActivityLogger -o hcc_bandwidth
+hcc -hc  hcc_bandwidth.cpp -lStackTimer -L utilities/  -I utilities/include/ -lhc_am  -o hcc_bandwidth
+
+hcc -hc copy_test.cpp -lStackTimer -L utilities/  -I utilities/include/ -o copy_test
