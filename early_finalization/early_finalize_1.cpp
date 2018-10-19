@@ -59,6 +59,9 @@ int main() {
     host_ns+=-av[i];
   }
 
+  printf("sum:  expected=%d, actual=%d\n", host_s, s);
+  printf("neg_sum:  expected=%d, actual=%d\n", host_ns, ns);
+
   return (s==host_s && ns==host_ns)?0:1;
 }
 #endif

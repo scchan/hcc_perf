@@ -41,12 +41,10 @@ int main() {
   constexpr unsigned int threads_per_block = 1;
 
   int s = 0;
-  //hipLaunchKernelGGL(sum, dim3(blocks), dim3(threads_per_block), 0, 0, input, N, output);
   hipLaunchKernel(sum, dim3(blocks), dim3(threads_per_block), 0, 0, input, N, output);
   hipMemcpy(&s, output, sizeof(int), hipMemcpyDeviceToHost);
 
   int ns = 0;
-  //hipLaunchKernelGGL(sum, dim3(blocks), dim3(threads_per_block), 0, 0, input, N, output);
   hipLaunchKernel(neg_sum, dim3(blocks), dim3(threads_per_block), 0, 0, input, N, output);
   hipMemcpy(&ns, output, sizeof(int), hipMemcpyDeviceToHost);
 
