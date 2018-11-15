@@ -1,6 +1,8 @@
-
-#include <unistd.h>
+#include <fstream>
 #include <iostream>
+#include <sstream>
+#include <string>
+#include <unistd.h>
 #include <unordered_map>
 
 #include "elfio/elfio.hpp"
@@ -15,6 +17,13 @@ inline section* find_section_if(elfio& reader, P p) {
     const auto it = find_if(reader.sections.begin(), reader.sections.end(), move(p));
 
     return it != reader.sections.end() ? *it : nullptr;
+}
+
+// hack to workaround std::to_string on Ubuntu 16.04
+inline std::string my_to_string(int i) {
+  stringstream ss;
+  ss << i;
+  return ss.str();
 }
 
 int main(int argc, char* argv[]) {
@@ -67,7 +76,24 @@ int main(int argc, char* argv[]) {
 
     // dump all the bundles
     for (auto b = classified_blobs.begin(); b != classified_blobs.end(); ++b) {
-      std::cout << "arch: " << b->first << std::endl;
+      auto& b_arch = b->first;
+      cout << "arch: " << b_arch << endl;
+
+      // skip bundle for host
+      static const string host_prefix("host-");
+      if (b_arch.length() >= host_prefix.length() &&
+            std::equal(host_prefix.begin(), host_prefix.end(),
+                       b_arch.begin())) {
+          continue;
+      }
+
+      int i = 0;
+      for (const auto& vb : b->second) {
+        string filename = "dump_" + my_to_string(i++) + "." + b_arch + ".bin";
+        fstream file(filename, ios::out);
+        file.write(vb.data(), vb.size());
+        file.close();
+      }
     }
   }
   else {
