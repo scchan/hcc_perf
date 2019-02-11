@@ -6,10 +6,12 @@ HCC_PATH=/opt/rocm/hcc
 HCC=$HCC_PATH/bin/hcc
 HCC_RUNTIME_PATH=/opt/rocm/hcc/lib/
 
+OPTS="--amdgpu-target=gfx900 --amdgpu-target=gfx906"
+
 rm early_finalize_1.obj1.o  early_finalize_1.obj2.o  early_finalize_1.obj3.o  early_finalize_1
 
-$HCC -hc -D_OBJ_1 early_finalize_1.cpp -c  -o early_finalize_1.obj1.o -fno-gpu-rdc
-$HCC -hc -D_OBJ_2 early_finalize_1.cpp -c  -o early_finalize_1.obj2.o -fno-gpu-rdc
-$HCC -hc -D_OBJ_3 early_finalize_1.cpp -c  -o early_finalize_1.obj3.o -fno-gpu-rdc
+$HCC -hc -D_OBJ_1 early_finalize_1.cpp -c  -o early_finalize_1.obj1.o -fno-gpu-rdc $OPTS
+$HCC -hc -D_OBJ_2 early_finalize_1.cpp -c  -o early_finalize_1.obj2.o -fno-gpu-rdc $OPTS
+$HCC -hc -D_OBJ_3 early_finalize_1.cpp -c  -o early_finalize_1.obj3.o -fno-gpu-rdc $OPTS
 
 g++ early_finalize_1.obj1.o  early_finalize_1.obj2.o  early_finalize_1.obj3.o -o early_finalize_1 -L$HCC_RUNTIME_PATH -Wl,-rpath=$HCC_RUNTIME_PATH -lmcwamp
