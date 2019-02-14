@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -x
+
+HIPCC=/opt/rocm/hip/bin/hipcc
+
+$HIPCC sl0.cpp -fno-gpu-rdc -fPIC --shared -o libsl0.so
+$HIPCC sl1.cpp -fno-gpu-rdc -fPIC --shared -o libsl1.so
+
+$HIPCC run.cpp -DLINK_DEP -lsl1 -lsl0 -L . -o run.linked
+
+$HIPCC run.cpp -DDLOPEN -o run.dlopen
+
+
