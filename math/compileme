@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -x
+
+LAZY_LIB_PATH=/home/scchan/code/FBA-17/newer/lazy
+
+/opt/rocm/hcc/bin/hcc -hc -c test_math.cpp --amdgpu-target=gfx900 -fno-gpu-rdc
+g++ test_math.o  -L $LAZY_LIB_PATH -o test_math -llazy_hc_am -llazy_mcwamp -llazy_hsa-runtime64 -ldl 
+g++ test_math.o  -L $LAZY_LIB_PATH $LAZY_LIB_PATH/liblazy_hc_am.a $LAZY_LIB_PATH/liblazy_mcwamp.a $LAZY_LIB_PATH/liblazy_hsa-runtime64.a -o test_math.static_lazy  -ldl 
+
+

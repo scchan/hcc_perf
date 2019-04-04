@@ -1,0 +1,39 @@
+#!/bin/bash
+
+set -x
+
+HCC_PATH=/opt/rocm/hcc
+HCC=$HCC_PATH/bin/hcc
+HCC_RUNTIME_PATH=$HCC_PATH/lib/
+
+HIP_PATH=/opt/rocm/hip
+HIP=$HIP_PATH/bin/hipcc
+HIP_RUNTIME_PATH=$HIP_PATH/lib/
+
+ROCM_LIB_PATH=/opt/rocm/lib
+
+rm early_finalize_1_hip.obj1.o  early_finalize_1_hip.obj2.o  early_finalize_1_hip.obj3.o  early_finalize_1_hip early_finalize_1_hip.non_ef
+
+$HIP -g -D_OBJ_1 early_finalize_1_hip.cpp -c  -o early_finalize_1_hip.obj1.o -fno-gpu-rdc
+$HIP -g -D_OBJ_2 early_finalize_1_hip.cpp -c  -o early_finalize_1_hip.obj2.o -fno-gpu-rdc
+$HIP -g -D_OBJ_3 early_finalize_1_hip.cpp -c  -o early_finalize_1_hip.obj3.o -fno-gpu-rdc
+
+g++ early_finalize_1_hip.obj1.o  early_finalize_1_hip.obj2.o  early_finalize_1_hip.obj3.o -o early_finalize_1_hip -L$HCC_RUNTIME_PATH -L/opt/rocm/lib/ \
+-Wl,-rpath=$HCC_RUNTIME_PATH -lmcwamp -L$HIP_RUNTIME_PATH -Wl,-rpath=$HIP_RUNTIME_PATH -lhip_hcc  -L$ROCM_LIB_PATH -Wl,-rpath=$ROCM_LIB_PATH -lhsa-runtime64
+
+
+#$HIP  -D_OBJ_1 -D_OBJ_2 -D_OBJ_3 early_finalize_1_hip.cpp  -o  early_finalize_1_hip.non_ef
+
+
+LAZY_LIB_PATH=/home/scchan/code/FBA-17/newer/lazy
+
+CLANG=$HCC_PATH/bin/clang++ 
+
+$CLANG -v -g early_finalize_1_hip.obj1.o  early_finalize_1_hip.obj2.o  early_finalize_1_hip.obj3.o -o early_finalize_1_hip.lazy \
+-L$LAZY_LIB_PATH -llazy_mcwamp -llazy_hip_hcc  -llazy_hc_am -llazy_hsa-runtime64 -ldl -lpthread
+
+
+$CLANG -v -g early_finalize_1_hip.obj1.o  early_finalize_1_hip.obj2.o  early_finalize_1_hip.obj3.o \
+-L$LAZY_LIB_PATH $LAZY_LIB_PATH/liblazy_hip_hcc.a $LAZY_LIB_PATH/liblazy_hc_am.a $LAZY_LIB_PATH/liblazy_mcwamp.a $LAZY_LIB_PATH/liblazy_hsa-runtime64.a  -o early_finalize_1_hip.static_lazy  -ldl -lpthread
+
+
