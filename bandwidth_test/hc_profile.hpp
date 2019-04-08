@@ -14,6 +14,8 @@
 #pragma once
 
 #include <string>
+
+#ifdef CXLACTIVITYLOGGER
 #include "CXLActivityLogger.h"
 
 #define __HC_XSTR(S)   __HC_STR(S)
@@ -23,3 +25,9 @@
                                            + std::string(__HC_XSTR([__FILE__:__LINE__]))).c_str() \
                                            ,nullptr,nullptr );
 
+#else
+
+#define HC_SCOPE_MARKER {}
+struct amdtScopedMarker {};
+
+#endif

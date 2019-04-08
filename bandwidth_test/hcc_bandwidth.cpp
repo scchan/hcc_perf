@@ -8,6 +8,7 @@
 
 #include "hc_profile.hpp"
 
+#ifdef CXLACTIVITYLOGGER
 class CodeXLProfilerInitializer {
 public:
   CodeXLProfilerInitializer() {
@@ -18,7 +19,7 @@ public:
   }
 };
 CodeXLProfilerInitializer initCodeXL;
-
+#endif
 
 constexpr int size_KB = 1024;
 constexpr int size_MB = size_KB * 1024;
