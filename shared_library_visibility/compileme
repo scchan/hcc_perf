@@ -1,0 +1,3 @@
+#!/bin/bash
+set -x
+g++ sl.cpp  -fPIC -shared -o libsl.so -fvisibility=hidden -fvisibility-inlines-hidden -fno-rtti 
