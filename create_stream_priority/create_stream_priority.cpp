@@ -24,6 +24,8 @@ int main() {
   printf("Stream priority range: %d to %d\n", lp, gp);
  
   int num_streams = 0;
+ 
+ #ifdef DESCENDING_PRIORITY
   for (int p = gp; p <= lp; ++p) {
       for (int np = 0; np < num_stream_per_priority; ++np, ++num_streams) {
           printf("hcc-queue - test - Creating stream %d with priority %d\n", num_streams, p);
@@ -33,8 +35,20 @@ int main() {
           v_stream.push_back(s);
       }
   } 
+#else
+  for (int p = lp; p >= gp; --p) {
+      for (int np = 0; np < num_stream_per_priority; ++np, ++num_streams) {
+          printf("hcc-queue - test - Creating stream %d with priority %d\n", num_streams, p);
+          hipStream_t s;
+          hipStreamCreateWithPriority(&s , hipStreamDefault, p);
+          hipLaunchKernelGGL(dummy, dim3(1), dim3(1), 0, s);
+          v_stream.push_back(s);
+      }
+  }
+#endif
 
   for (auto& s : v_stream) {
+      hipStreamSynchronize(s);
       hipStreamDestroy(s);
   }
 
