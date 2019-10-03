@@ -2,11 +2,11 @@
 #include "hip/hip_runtime.h"
 #include <vector>
 
-extern __global__ void sum(hipLaunchParm lp, int* input, const size_t N, int* output);
-extern __global__ void neg_sum(hipLaunchParm lp, int* input, const size_t N, int* output);
+extern __global__ void sum(int* input, const size_t N, int* output);
+extern __global__ void neg_sum(int* input, const size_t N, int* output);
 
 #ifdef _OBJ_1
-__global__ void sum(hipLaunchParm lp, int* input, const size_t N, int* output) {
+__global__ void sum(int* input, const size_t N, int* output) {
   *output = 0;
   for (int i = 0; i < N; ++i) {
     *output+=input[i];
@@ -15,7 +15,7 @@ __global__ void sum(hipLaunchParm lp, int* input, const size_t N, int* output) {
 #endif
 
 #ifdef _OBJ_2
-__global__ void neg_sum(hipLaunchParm lp, int* input, const size_t N, int* output) {
+__global__ void neg_sum(int* input, const size_t N, int* output) {
   *output = 0;
   for (int i = 0; i < N; ++i) {
     *output+=-input[i];
@@ -41,11 +41,11 @@ int main() {
   constexpr unsigned int threads_per_block = 1;
 
   int s = 0;
-  hipLaunchKernel(sum, dim3(blocks), dim3(threads_per_block), 0, 0, input, N, output);
+  hipLaunchKernelGGL(sum, dim3(blocks), dim3(threads_per_block), 0, 0, input, N, output);
   hipMemcpy(&s, output, sizeof(int), hipMemcpyDeviceToHost);
 
   int ns = 0;
-  hipLaunchKernel(neg_sum, dim3(blocks), dim3(threads_per_block), 0, 0, input, N, output);
+  hipLaunchKernelGGL(neg_sum, dim3(blocks), dim3(threads_per_block), 0, 0, input, N, output);
   hipMemcpy(&ns, output, sizeof(int), hipMemcpyDeviceToHost);
 
   int host_s = 0;
