@@ -1,0 +1,131 @@
+
+#include <algorithm>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <string>
+#include <vector>
+
+#include <hsa/amd_hsa_kernel_code.h>
+#include <hsa/hsa.h>
+#include <hsa/hsa_ext_amd.h>
+#include <hsa/hsa_ven_amd_loader.h>
+
+void check_hsa_error(hsa_status_t s) {
+    if (s != HSA_STATUS_SUCCESS) {
+        const char *error = nullptr;
+        auto ss = hsa_status_string(s, &error);
+        if (ss == HSA_STATUS_SUCCESS)
+            std::cerr << "HSA Error: " << error << std::endl;
+        else
+            std::cerr << "HSA not initialized or invalid status error" << std::endl;
+        abort();
+    }
+}
+
+class hsa_env {
+public:
+    hsa_env() {
+        check_hsa_error(hsa_init());
+    }
+    ~hsa_env() {
+        for(auto& e : executables) {
+            check_hsa_error(
+                hsa_executable_destroy(e));
+        }
+        for(auto& r : code_object_readers) {
+            check_hsa_error(
+                hsa_code_object_reader_destroy(r));
+        }
+        check_hsa_error(hsa_shut_down());
+    }
+
+    void get_agents() {
+        auto f = [](hsa_agent_t agent, void* data) {
+            hsa_env* this_ptr = reinterpret_cast<hsa_env*>(data);
+            hsa_device_type_t dtype;
+            check_hsa_error(hsa_agent_get_info(agent, HSA_AGENT_INFO_DEVICE, &dtype));
+            switch (dtype) {
+              case HSA_DEVICE_TYPE_GPU:
+                this_ptr->gpu_agents.push_back(agent);
+                break;
+              case HSA_DEVICE_TYPE_CPU:
+                this_ptr->host_agents.push_back(agent);
+                break;
+            };
+            return HSA_STATUS_SUCCESS;
+        };
+        check_hsa_error(hsa_iterate_agents(f, this));
+#if 1
+        std::cout << "found " << gpu_agents.size() << " GPUs" << std::endl;
+        std::cout << "found " << host_agents.size() << " Host Agents" << std::endl;
+#endif
+    }
+
+    hsa_executable_t load_code_object(hsa_agent_t agent, std::vector<char>& code_blob) {
+
+        hsa_code_object_reader_t r = {};
+        check_hsa_error(
+        hsa_code_object_reader_create_from_memory(code_blob.data(), code_blob.size(), &r));
+
+        hsa_executable_t exe = {};
+
+        check_hsa_error(
+         hsa_executable_create_alt(
+                                HSA_PROFILE_FULL,
+                                HSA_DEFAULT_FLOAT_ROUNDING_MODE_DEFAULT,
+                                nullptr,
+                                &exe));     
+        check_hsa_error(
+          hsa_executable_load_agent_code_object(exe, agent, r, nullptr, nullptr));
+        check_hsa_error(
+          hsa_executable_freeze(exe, nullptr));
+
+
+        auto get_kernel_symbols = [](hsa_executable_t, hsa_agent_t agent, hsa_executable_symbol_t symbol, void* data) {
+            hsa_env* this_ptr = reinterpret_cast<hsa_env*>(data);
+            return HSA_STATUS_SUCCESS;
+        };
+        check_hsa_error(
+            hsa_executable_iterate_agent_symbols(
+                exe, agent, get_kernel_symbols, this));
+        code_object_readers.push_back(r);
+        executables.push_back(exe);
+    }
+
+    std::vector<hsa_agent_t> host_agents;
+    std::vector<hsa_agent_t> gpu_agents;
+
+    std::vector<hsa_executable_symbol_t> agent_symbols;
+    std::vector<hsa_executable_t> executables;
+    std::vector<hsa_code_object_reader_t> code_object_readers;
+};
+
+int main(int argc, char* argv[]) {
+
+  if (argc != 2) {
+      return -1;
+  }
+
+  std::ifstream s(argv[1], std::ios::binary|std::ios::in);
+  if (!s.is_open()) {
+      std::cerr << "Can't open " << argv[1] << std::endl;
+      return -1;
+  }
+  s.seekg(0, s.end);
+  std::vector<char> file_content(s.tellg());
+  s.seekg(0, s.beg);
+  s.read(file_content.data(), file_content.size());
+
+#if 0
+  std::cout << "read " << file_content.size() << " bytes" << std::endl;
+  std::cout << "file content: " << std::endl;
+  std::cout << std::string(file_content.begin(), file_content.end()) << std::endl;
+#endif
+
+  hsa_env hsa;
+  hsa.get_agents();
+  hsa.load_code_object(hsa.gpu_agents[0], file_content);
+
+  return 0;
+}
