@@ -81,9 +81,13 @@ public:
         check_hsa_error(
           hsa_executable_freeze(exe, nullptr));
 
-
         auto get_kernel_symbols = [](hsa_executable_t, hsa_agent_t agent, hsa_executable_symbol_t symbol, void* data) {
             hsa_env* this_ptr = reinterpret_cast<hsa_env*>(data);
+            hsa_symbol_kind_t r = {};
+            hsa_executable_symbol_get_info(symbol, HSA_EXECUTABLE_SYMBOL_INFO_TYPE, &r);
+            if (r == HSA_SYMBOL_KIND_KERNEL) {
+                this_ptr->agent_symbols.push_back(symbol);
+            }
             return HSA_STATUS_SUCCESS;
         };
         check_hsa_error(
@@ -91,6 +95,10 @@ public:
                 exe, agent, get_kernel_symbols, this));
         code_object_readers.push_back(r);
         executables.push_back(exe);
+
+#if 1
+        std::cout << "load_code_object: " << agent_symbols.size() << " kernel symbols" << std::endl;
+#endif
     }
 
     std::vector<hsa_agent_t> host_agents;
