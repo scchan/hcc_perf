@@ -62,6 +62,16 @@ public:
 #endif
     }
 
+    inline std::string symbol_name(hsa_executable_symbol_t x) {
+        std::uint32_t sz = 0u;
+        hsa_executable_symbol_get_info(x, HSA_EXECUTABLE_SYMBOL_INFO_NAME_LENGTH, &sz);
+
+        std::string r(sz, '\0');
+        hsa_executable_symbol_get_info(x, HSA_EXECUTABLE_SYMBOL_INFO_NAME, &r.front());
+
+        return r;
+    }
+
     hsa_executable_t load_code_object(hsa_agent_t agent, std::vector<char>& code_blob) {
 
         hsa_code_object_reader_t r = {};
@@ -86,6 +96,9 @@ public:
             hsa_symbol_kind_t r = {};
             hsa_executable_symbol_get_info(symbol, HSA_EXECUTABLE_SYMBOL_INFO_TYPE, &r);
             if (r == HSA_SYMBOL_KIND_KERNEL) {
+#if 1
+                std::cerr << "adding symbol: " << this_ptr->symbol_name(symbol) << std::endl;
+#endif
                 this_ptr->agent_symbols.push_back(symbol);
             }
             return HSA_STATUS_SUCCESS;
@@ -109,21 +122,37 @@ public:
     std::vector<hsa_code_object_reader_t> code_object_readers;
 };
 
+bool read_file(std::string file, std::vector<char>& file_content) {
+  std::ifstream s(file, std::ios::binary|std::ios::in);
+  file_content.clear();
+  if (!s.is_open()) {
+    //td::cerr << "Can't open " << file << std::endl;
+    return false;
+  }
+
+  s.seekg(0, s.end);
+  file_content.resize(s.tellg());
+  s.seekg(0, s.beg);
+  s.read(file_content.data(), file_content.size());
+  return true;
+}
+
+bool write_file(std::string file, std::vector<char>& file_content) {
+  std::ofstream s(file, std::ios::binary|std::ios::out|std::ios::trunc);
+  if (!s.is_open()) {
+    std::cerr << "Can't open " << file << std::endl;
+    return false;
+  }
+  s.write(file_content.data(), file_content.size());
+  s.close();
+  return true;
+}
+
 int main(int argc, char* argv[]) {
 
   if (argc != 2) {
       return -1;
   }
-
-  std::ifstream s(argv[1], std::ios::binary|std::ios::in);
-  if (!s.is_open()) {
-      std::cerr << "Can't open " << argv[1] << std::endl;
-      return -1;
-  }
-  s.seekg(0, s.end);
-  std::vector<char> file_content(s.tellg());
-  s.seekg(0, s.beg);
-  s.read(file_content.data(), file_content.size());
 
 #if 0
   std::cout << "read " << file_content.size() << " bytes" << std::endl;
@@ -133,7 +162,16 @@ int main(int argc, char* argv[]) {
 
   hsa_env hsa;
   hsa.get_agents();
+
+  std::string file_name = argv[1];
+  std::vector<char> file_content;
+  if (!read_file(file_name, file_content)) {
+    std::cerr << "Error reading " << file_name << std::endl;
+  }
+    
   hsa.load_code_object(hsa.gpu_agents[0], file_content);
+
+  write_file("./test_outputfile", file_content);
 
   return 0;
 }
