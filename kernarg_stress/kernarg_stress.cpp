@@ -4,7 +4,9 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <typeinfo>
+#include <utility>
 #include <vector>
 
 #include "hip/hip_runtime.h"
@@ -31,7 +33,7 @@ public:
         //std::cout << "sizeof " << typeid(kernargs_s).name() << ": " << sizeof(kernargs_s) << std::endl;
         start();
     }
-    bool check() override {
+    bool check() {
         std::call_once(result_flag, [this]() {
             hipMemcpyAsync(&actual_r, gpu_r_ptr, sizeof(T), hipMemcpyDeviceToHost, stream);
             hipStreamSynchronize(stream);
@@ -100,11 +102,29 @@ int main() {
   constexpr size_t implicit_kernarg_size = 56;
   constexpr size_t other_args = output_ptr_size + implicit_kernarg_size;
 
-  bool error = false;
-  error = error || !test_kernarg_buffer_recycling<uint32_t, 512 - other_args>();
-  error = error || !test_kernarg_buffer_recycling<uint32_t, 1024 - other_args>();
-  error = error || !test_kernarg_buffer_recycling<uint32_t, 2048 - other_args>();
-  error = error || !test_kernarg_buffer_recycling<uint32_t, 4096 - other_args>();
+  int device_count = 0;
+  hipGetDeviceCount(&device_count);
+  std::vector<std::pair<std::thread,bool>> t;
+  for (int i = 0; i < device_count; ++i) {
+      t.push_back(std::make_pair(std::thread([i, &t]() {
+          hipSetDevice(i);
+          bool error = false;
+          error = error || !test_kernarg_buffer_recycling<uint32_t, 512 - other_args>();
+          error = error || !test_kernarg_buffer_recycling<uint32_t, 1024 - other_args>();
+          error = error || !test_kernarg_buffer_recycling<uint32_t, 2048 - other_args>();
+          error = error || !test_kernarg_buffer_recycling<uint32_t, 4096 - other_args>();
+          t[i].second = error;
+      }), true));
+  }
 
+  bool error = false;
+  for (auto& i : t) {
+      i.first.join();
+      error = error || i.second;
+  }
+
+  if (error) {
+      std::cout << "Error found." << std::endl;
+  }
   return error;
 }
