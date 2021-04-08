@@ -23,7 +23,7 @@ public:
     virtual void virtual_print() {
         printf("%s: %d\n", __PRETTY_FUNCTION__, this->v);
     }
-protected:
+public:
     int v;
 };
 
@@ -42,7 +42,7 @@ public:
     void virtual_print() override {
         printf("%s: v=%d, bd_v=%d\n", __PRETTY_FUNCTION__, this->v, this->bd_v);
     }
-protected:
+public:
     int bd_v;
 };
 

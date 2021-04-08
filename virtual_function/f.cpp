@@ -6,6 +6,7 @@
 constexpr uint32_t num_objects = 2;
 
 __global__ void k(void** p) {
+
     if (threadIdx.x == 0) {
         new(*p) b(threadIdx.x + 10);
     }
@@ -13,12 +14,17 @@ __global__ void k(void** p) {
         new(*(p + 1)) bd(threadIdx.x + 100);
     }
     __syncthreads();
+
     if (threadIdx.x == 0) {
       for (uint32_t i = 0; i < num_objects; ++i) {
           auto b_ptr = reinterpret_cast<b*>(*(p + i));
           b_ptr->base_print();
           b_ptr->virtual_print();
       }
+
+      // print the member variables of the derived class directly
+      auto bd_ptr = reinterpret_cast<bd*>(*(p + 1));
+      printf("Expected from bd::virtual_print(): v=%d, bd_v=%d\n", bd_ptr->v, bd_ptr->bd_v);
     }
 }
 
@@ -36,7 +42,8 @@ int main() {
     for(uint32_t i = 0; i < num_objects; ++i) {
         HIP_CHECK_ERROR(hipMalloc(buffers + i, obj_size));
     }
-    k<<<1, 2>>>(buffers);
+    k<<<1, num_objects>>>(buffers);
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     for(uint32_t i = 0; i < num_objects; ++i) {
         HIP_CHECK_ERROR(hipFree(*(buffers + i)));
