@@ -1,6 +1,11 @@
+#pragma once
+
 #include <algorithm>
 #include <cstdio>
 #include "hip/hip_runtime.h"
+#include "hip_helper.h"
+
+#include <tuple>
 
 class b {
 public:
@@ -23,6 +28,14 @@ public:
     virtual void virtual_print() {
         printf("%s: %d\n", __PRETTY_FUNCTION__, this->v);
     }
+
+    __host__
+    __device__
+    int get_value_base() { return v; }
+
+    HIP_HOST_DEVICE
+    virtual int get_virtual_value() { return get_value_base(); }
+
 public:
     int v;
 };
@@ -42,13 +55,10 @@ public:
     void virtual_print() override {
         printf("%s: v=%d, bd_v=%d\n", __PRETTY_FUNCTION__, this->v, this->bd_v);
     }
+
+    HIP_HOST_DEVICE
+    virtual int get_virtual_value() override { return bd_v; }
+
 public:
     int bd_v;
 };
-
-
-__host__
-__device__
-inline size_t get_max_object_size() {
-    return std::max(sizeof(b), sizeof(bd));
-}

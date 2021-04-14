@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include "f.h"
 #include "hip/hip_runtime.h"
+#include "hip_helper.h"
 #include <iostream>
 
 constexpr uint32_t num_objects = 2;
@@ -28,17 +29,10 @@ __global__ void k(void** p) {
     }
 }
 
-#define HIP_CHECK_ERROR(x) \
-    {hipError_t e = x;\
-    if (e != HIP_SUCCESS) {\
-        std::cerr << __FILE__ << ":" << __LINE__ << " HIP error " << e << std::endl;\
-        std::exit(1);\
-    }}\
-
 int main() {
     void** buffers{nullptr};
     HIP_CHECK_ERROR(hipHostMalloc(&buffers, num_objects * sizeof(void*)));
-    const size_t obj_size = get_max_object_size() + 1024;
+    constexpr size_t obj_size = get_max_object_size<b, bd>();
     for(uint32_t i = 0; i < num_objects; ++i) {
         HIP_CHECK_ERROR(hipMalloc(buffers + i, obj_size));
     }
