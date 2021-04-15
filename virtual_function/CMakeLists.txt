@@ -17,3 +17,4 @@ message(STATUS "HIP_CXX_COMPILER: ${HIP_CXX_COMPILER}")
 include_directories("common/include")
 
 add_subdirectory(printf_issue)
+add_subdirectory(single_code_object)

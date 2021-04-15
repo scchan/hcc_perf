@@ -20,26 +20,28 @@ public:
     __host__
     __device__
     void base_print() {
-        printf("%s: %d\n", __PRETTY_FUNCTION__, this->v);
+        printf("%s: %u\n", __PRETTY_FUNCTION__, this->v);
     }
 
     __host__
     __device__
     virtual void virtual_print() {
-        printf("%s: %d\n", __PRETTY_FUNCTION__, this->v);
+        printf("%s: %u\n", __PRETTY_FUNCTION__, this->v);
     }
 
     __host__
     __device__
-    int get_value_base() { return v; }
+    uint32_t get_base() const { return v; }
 
     HIP_HOST_DEVICE
-    virtual int get_virtual_value() { return get_value_base(); }
+    virtual uint32_t get_virtual() const { return get_base(); }
 
 public:
-    int v;
+    uint32_t v;
 };
 
+
+#define BD_MAGIC 900000
 class bd : public b {
 public:
     __host__
@@ -48,17 +50,17 @@ public:
 
     __host__
     __device__
-    bd(uint32_t i) : b(i), bd_v(i + 1234) {}
+    bd(uint32_t i) : b(i), bd_v(i + BD_MAGIC) {}
   
     __host__
     __device__
     void virtual_print() override {
-        printf("%s: v=%d, bd_v=%d\n", __PRETTY_FUNCTION__, this->v, this->bd_v);
+        printf("%s: v=%u, bd_v=%u\n", __PRETTY_FUNCTION__, this->v, this->bd_v);
     }
 
     HIP_HOST_DEVICE
-    virtual int get_virtual_value() override { return bd_v; }
+    virtual uint32_t get_virtual() const override { return bd_v; }
 
 public:
-    int bd_v;
+    uint32_t bd_v;
 };
