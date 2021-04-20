@@ -26,6 +26,7 @@ __global__ void k(void** p) {
               , ptr->get_base(), expected_base[i]
               , ptr->get_virtual(), expected_virtual[i]);
         }
+        
     }
 }
 

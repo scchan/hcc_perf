@@ -18,3 +18,5 @@ include_directories("common/include")
 
 add_subdirectory(printf_issue)
 add_subdirectory(single_code_object)
+add_subdirectory(libA)
+add_subdirectory(libB)
