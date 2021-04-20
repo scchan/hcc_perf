@@ -1,3 +1,4 @@
+#include "B.h"
 #include "f.h"
 #include "hip/hip_runtime.h"
 #include "hip_helper.h"

@@ -7,15 +7,21 @@
 
 #include <tuple>
 
+//#define __DEBUG__ 1
+
 class b {
 public:
     __host__
     __device__
-    b() : v(0) {}
+    b() : b(0) {}
 
     __host__
     __device__
-    b(uint32_t i) : v(i) {}
+    b(uint32_t i) : v(i) {
+#ifdef __DEBUG__
+        printf("%s: v=%u\n", __PRETTY_FUNCTION__, this->v);
+#endif
+    }
 
     __host__
     __device__
@@ -50,7 +56,11 @@ public:
 
     __host__
     __device__
-    bd(uint32_t i) : b(i), bd_v(i + BD_MAGIC) {}
+    bd(uint32_t i) : b(i), bd_v(i + BD_MAGIC) {
+#ifdef __DEBUG__
+        printf("%s: v=%u, bd_v=%u\n", __PRETTY_FUNCTION__, this->v, this->bd_v);
+#endif
+    }
   
     __host__
     __device__

@@ -1,6 +1,8 @@
 
-#pragma once 
+#pragma once
 
+#include <cstdlib>
+#include <iostream>
 #include "hip/hip_runtime.h"
 
 #define HIP_CHECK_ERROR(x) \
