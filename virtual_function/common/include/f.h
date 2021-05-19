@@ -9,6 +9,7 @@
 
 //#define __DEBUG__ 1
 
+
 class b {
 public:
     __host__
@@ -33,6 +34,14 @@ public:
     __device__
     virtual void virtual_print() {
         printf("%s: %u\n", __PRETTY_FUNCTION__, this->v);
+    }
+
+    typedef decltype(&b::virtual_print) fp;
+
+    __host__
+    __device__
+    virtual fp get_virtual_print_addr() {
+        return &b::virtual_print;
     }
 
     __host__

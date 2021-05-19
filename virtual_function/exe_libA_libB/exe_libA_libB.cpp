@@ -16,6 +16,10 @@ int main() {
     run_B_construct_object(reinterpret_cast<b**>(buffers), num_objects);
     run_A_invoke_virtual(reinterpret_cast<b**>(buffers), num_objects);
 
+#if 0
+    run_A_print_vaddr(reinterpret_cast<b**>(buffers), num_objects);
+#endif
+
     for(uint32_t i = 0; i < num_objects; ++i) {
         HIP_CHECK_ERROR(hipFree(*(buffers + i)));
     }
