@@ -14,6 +14,13 @@ __global__ void A_invoke_virtual(b** p, const uint32_t n) {
     }
 }
 
+
+void run_A_invoke_virtual(b** p, const uint32_t n) {
+    A_invoke_virtual<<<1, 1>>>(p, n);
+}
+
+
+#ifdef A_PRINT_VADDRR
 __global__ void A_print_vaddr(b** p, const uint32_t n, void** fptrb) {
     if (threadIdx.x == 0 && n > 0) {
         union {
@@ -25,11 +32,6 @@ __global__ void A_print_vaddr(b** p, const uint32_t n, void** fptrb) {
         fptrb[0] = u.cp;
     }
 }
-
-void run_A_invoke_virtual(b** p, const uint32_t n) {
-    A_invoke_virtual<<<1, 1>>>(p, n);
-}
-
 void run_A_print_vaddr(b** p, const uint32_t n) {
     void** f{nullptr};
     HIP_CHECK_ERROR(hipHostMalloc(&f, sizeof(void*)));
@@ -37,3 +39,4 @@ void run_A_print_vaddr(b** p, const uint32_t n) {
     printf("%s: virtual function addr: %p\n", __PRETTY_FUNCTION__, f[0]);
     HIP_CHECK_ERROR(hipHostFree(f));
 }
+#endif

@@ -16,7 +16,7 @@ int main() {
     run_B_construct_object(reinterpret_cast<b**>(buffers), num_objects);
     run_A_invoke_virtual(reinterpret_cast<b**>(buffers), num_objects);
 
-#if 0
+#ifdef A_PRINT_VADDRR
     run_A_print_vaddr(reinterpret_cast<b**>(buffers), num_objects);
 #endif
 
