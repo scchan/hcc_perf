@@ -23,6 +23,6 @@ add_subdirectory(libB)
 add_subdirectory(exe_libA_libB)
 #add_subdirectory(copy_ctor)
 add_subdirectory(private_shared_mem)
-#add_subdirectory(normcdf)
+add_subdirectory(normcdf)
 
 add_subdirectory(picongpu)
