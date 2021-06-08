@@ -1,0 +1,11 @@
+*.bc
+*.cui
+*.ll
+*.o
+*.s
+*.out
+*.out.resolution.txt
+*.hipfb
+*.mcin
+*.co
+*.ii
