@@ -14,9 +14,21 @@ __global__ void A_invoke_virtual(b** p, const uint32_t n) {
     }
 }
 
+__global__ void A_invoke_virtual_parallel(b** p, const uint32_t n) {
+    if (threadIdx.x < n) {
+        int i = threadIdx.x;
+        auto base = p[i]->get_base();
+        auto virt = p[i]->get_virtual();
+        printf("%s  object %d:\t get_base()=%u\t get_virtual()=%u\n",
+          __PRETTY_FUNCTION__, i, base, virt);
+    }
+}
+
 
 void run_A_invoke_virtual(b** p, const uint32_t n) {
     A_invoke_virtual<<<1, 1>>>(p, n);
+    A_invoke_virtual_parallel<<<1, n>>>(p, n);
+    hipDeviceSynchronize();
 }
 
 
