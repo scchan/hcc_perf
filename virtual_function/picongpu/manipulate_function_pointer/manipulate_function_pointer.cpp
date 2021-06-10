@@ -31,6 +31,22 @@ __global__ void call_fn(const float *v, const int N){
   fn_array[N](v[N]);
 }
 
+typedef decltype(A) dft;
+__global__ void get_A_fptr(dft* x) {
+    x = &A;
+}
+__global__ void call_A_fptr(dft* x, float y) {
+    x(y);
+}
+
+__global__ void v(void* x) {
+    x = reinterpret_cast<void*>(&A);
+}
+__global__ void vv(void* x, float y) {
+    void(*xx)(const float) = reinterpret_cast<decltype(xx)>(x);
+    xx(y);
+}
+
 int main(int argc, char *argv[])
 {
     float* v = nullptr;
@@ -43,5 +59,17 @@ int main(int argc, char *argv[])
       hipDeviceSynchronize();
     }
     hipFree(v);
+ 
+ #if 1
+    void* fptr{nullptr};
+    hipMalloc(&fptr, sizeof(void*));
+    get_A_fptr<<<1,1>>>(reinterpret_cast<dft*>(fptr));
+
+    call_A_fptr<<<1,1>>>(reinterpret_cast<dft*>(fptr), 1234.0f);
+    hipDeviceSynchronize();
+
+    hipFree(fptr);
+#endif
+
     return 0;
 }
