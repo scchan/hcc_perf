@@ -3,51 +3,33 @@
 #include <iostream>
 #include <cmath>
 
-extern "C" {
-    __device__ void __cxa_pure_virtual(void) {
-        abort();
-    }
-}
-
-class compute_base {
-public:
+struct compute_base {
     __host__ 
     __device__ 
-    virtual float compute(float x) = 0;
-    //{ return x; }
+    virtual float compute(const float x) const = 0;
 };
-
-class compute_normcdf : compute_base {
-public:
-#if 0
-    __device__
-    virtual float compute(float x) override {
-        return normcdf(x);
-    }
-#endif
+struct compute_normcdf : compute_base {
     __device__
     __host__
-    virtual float compute(float x) override {
+    virtual float compute(const float x) const override {
         return (1.0f + erff(x / sqrtf(2.0f))) / 2.0f;
     }
 };
-
-
-#if 0
-class compute_deleted_vir : compute_base {
-public:
-    __device__
-    __host__
-    virtual float compute(float x) override = delete;
-};
-#endif
-
 
 __global__ void construct_normcdf_obj(compute_normcdf* b) {
     if (threadIdx.x == 0 && blockIdx.x == 0) {
         new(b) compute_normcdf();
     }
 }
+
+
+__global__ void compute(const compute_base* b, const float* input, float* output, const int N) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < N) {
+        output[i] = b[i].compute(input[i]);
+    }
+}
+
 
 
 int main() {
