@@ -1,0 +1,15 @@
+#!/bin/bash
+
+set -x
+
+CC=/opt/rocm/bin/hipcc
+
+#LD_FLAGS="-Wl,--enable-new-dtags"
+
+LD_FLAGS="-Wl,--disable-new-dtags"
+#LD_FLAGS="$LD_FLAGS -Wl,-rpath=/opt/rocm/lib"
+#LD_FLAGS="$LD_FLAGS -fuse-ld=ld -v"
+
+$CC -fPIC   -shared -o libA.so  -DA_EXPORTS -D__HIP_PLATFORM_AMD__=1 -D__HIP_PLATFORM_HCC__=1 -I/opt/rocm/include -I/home/scchan/code/hcc_perf/shared_library/libA  -xhip --offload-arch=gfx900  -std=gnu++17   /home/scchan/code/hcc_perf/shared_library/libA/A.cpp $LD_FLAGS
+$CC -fPIC   -o run_shared_lib   -DA_EXPORTS -D__HIP_PLATFORM_AMD__=1 -D__HIP_PLATFORM_HCC__=1 -I/opt/rocm/include -I/home/scchan/code/hcc_perf/shared_library/libA  -xhip --offload-arch=gfx900  -std=gnu++17   /home/scchan/code/hcc_perf/shared_library/run_shared_lib.cpp -L. -L/opt/rocm/lib $LD_FLAGS -lA -lamdhip64 -lpthread
+
