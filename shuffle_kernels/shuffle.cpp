@@ -60,7 +60,7 @@ int main() {
     hipMemcpy(d_gpu, d_cpu.data(), d_cpu.size() * sizeof(int), hipMemcpyHostToDevice);
  
     std::vector<int> index_cpu(num_threads);
-    std::generate(index_cpu.begin(), index_cpu.end(), []{ static int c = 0; return c++;});
+    std::generate(index_cpu.begin(), index_cpu.end(), []{ static int c = 16; return (c++)%32;});
     int* index_gpu = nullptr;
     hipMalloc(&index_gpu, index_cpu.size() * sizeof(int));
     hipMemcpy(index_gpu, index_cpu.data(), index_cpu.size() * sizeof(int), hipMemcpyHostToDevice);
@@ -78,7 +78,6 @@ int main() {
         std::cout << d << ", ";
     }
     std::cout << std::endl;
-
 
     for(int delta = 0; delta < num_threads; ++delta) {
         kernel_shfl_up<<<1, num_threads>>>(d_gpu, out_gpu, delta);
