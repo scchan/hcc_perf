@@ -90,7 +90,7 @@ int main() {
     for(int delta = 0; delta < num_threads; ++delta) {
         kernel_shfl_up<<<1, num_threads>>>(d_gpu, out_gpu, delta);
         hipMemcpy(out_cpu.data(), out_gpu, out_cpu.size() * sizeof(int), hipMemcpyDeviceToHost);
-        std::cout << "kernel_shfl_up(" << delta << "(: ";
+        std::cout << "kernel_shfl_up(" << delta << "): ";
         for(auto d : out_cpu) {
             std::cout << d << ", ";
         }
