@@ -4,18 +4,18 @@
 #include <vector>
 #include "hip/hip_runtime.h"
 
-__global__ void kernel_shfl_up(int* a, int n) {
+__global__ void kernel_shfl_up(int* a, int* b, int n) {
     auto i = hipThreadIdx_x;
     auto d = a[i];
     d = __shfl_up(d, n);
-    a[i] = d;
+    b[i] = d;
 }
 
-__global__ void kernel_shfl_down(int* a, int n) {
+__global__ void kernel_shfl_down(int* a, int* b, int n) {
     auto i = hipThreadIdx_x;
     auto d = a[i];
-    d = __shfl_up(d,n);
-    a[i] = d;
+    d = __shfl_down(d,n);
+    b[i] = d;
 }
 __global__ void kernel_shfl_xor(int* a, int mask) {
     auto i = hipThreadIdx_x;
@@ -33,7 +33,7 @@ __global__ void kernel_shfl_up_width(int* a, int n, const int w) {
 __global__ void kernel_shfl_down_width(int* a, int n, const int w) {
     auto i = hipThreadIdx_x;
     auto d = a[i];
-    d = __shfl_up(d, n, w);
+    d = __shfl_down(d, n, w);
     a[i] = d;
 }
 __global__ void kernel_shfl_xor_width(int* a, int mask, const int w) {
@@ -73,11 +73,22 @@ int main() {
 
     hipMemcpy(out_cpu.data(), out_gpu, out_cpu.size() * sizeof(int), hipMemcpyDeviceToHost);
 
-    std::cout << "out_put: ";
+    std::cout << "kernel_shfl output: ";
     for(auto d : out_cpu) {
         std::cout << d << ", ";
     }
     std::cout << std::endl;
+
+
+    for(int delta = 0; delta < num_threads; ++delta) {
+        kernel_shfl_up<<<1, num_threads>>>(d_gpu, out_gpu, delta);
+        hipMemcpy(out_cpu.data(), out_gpu, out_cpu.size() * sizeof(int), hipMemcpyDeviceToHost);
+        std::cout << "kernel_shfl_up(" << delta << "(: ";
+        for(auto d : out_cpu) {
+            std::cout << d << ", ";
+        }
+        std::cout << std::endl;
+    }
 
     hipFree(d_gpu);
     hipFree(index_gpu);
