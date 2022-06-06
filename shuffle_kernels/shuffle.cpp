@@ -11,6 +11,14 @@ __global__ void kernel_shfl_up(int* a, int* b, int n) {
     b[i] = d;
 }
 
+__global__ void kernel_shfl_up_modulo(int* a, int* b) {
+    auto i = hipThreadIdx_x;
+    auto d = a[i];
+    d = __shfl_up(d, i%2);
+    b[i] = d;
+}
+
+
 __global__ void kernel_shfl_down(int* a, int* b, int n) {
     auto i = hipThreadIdx_x;
     auto d = a[i];
@@ -88,6 +96,14 @@ int main() {
         }
         std::cout << std::endl;
     }
+
+    kernel_shfl_up_modulo<<<1, num_threads>>>(d_gpu, out_gpu);
+    hipMemcpy(out_cpu.data(), out_gpu, out_cpu.size() * sizeof(int), hipMemcpyDeviceToHost);
+    std::cout << "kernel_shfl_up_modulo output: ";
+    for(auto d : out_cpu) {
+        std::cout << d << ", ";
+    }
+    std::cout << std::endl;
 
     hipFree(d_gpu);
     hipFree(index_gpu);
